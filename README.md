@@ -29,11 +29,11 @@ Node.js 18 or newer.
 
 Every variable is optional. NCBI asks automated clients to identify themselves, and an API key raises the rate limit.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `NCBI_API_KEY` | unset | Raises the ceiling from 3 to 10 requests per second. Get one from the Settings page of your [NCBI account](https://www.ncbi.nlm.nih.gov/account/). |
-| `NCBI_EMAIL` | unset | Contact address sent with every request. NCBI uses it to warn you before an IP block. |
-| `NCBI_TOOL` | `eutils-mcp-server` | Name that identifies this software in the NCBI logs. |
+| Variable       | Default             | Purpose                                                                                                                                            |
+| -------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NCBI_API_KEY` | unset               | Raises the ceiling from 3 to 10 requests per second. Get one from the Settings page of your [NCBI account](https://www.ncbi.nlm.nih.gov/account/). |
+| `NCBI_EMAIL`   | unset               | Contact address sent with every request. NCBI uses it to warn you before an IP block.                                                              |
+| `NCBI_TOOL`    | `eutils-mcp-server` | Name that identifies this software in the NCBI logs.                                                                                               |
 
 Supply the values in the `env` block of your MCP host config. Or keep them in a `.env` file at the project root, and launch the server with `--env-file-if-exists`:
 
@@ -76,7 +76,10 @@ To keep the key out of the host config, read it from `.env` instead:
   "mcpServers": {
     "entrez": {
       "command": "node",
-      "args": ["--env-file-if-exists=/absolute/path/to/E-utilities/.env", "/absolute/path/to/E-utilities/dist/index.js"]
+      "args": [
+        "--env-file-if-exists=/absolute/path/to/E-utilities/.env",
+        "/absolute/path/to/E-utilities/dist/index.js"
+      ]
     }
   }
 }
@@ -114,19 +117,19 @@ To drive it from a model instead, run the server and let the host call the tools
 
 Eleven tools. Every tool takes `response_format` of `"markdown"` or `"json"`, and defaults to markdown. Every tool reports `readOnlyHint: true` and `destructiveHint: false`.
 
-| Tool | Purpose |
-|---|---|
-| `eutils_einfo` | List databases, or describe one database: searchable fields, links, record count |
-| `eutils_esearch` | Search a database. Returns UIDs and a History handle |
-| `eutils_epost` | Upload a UID list to the NCBI History server |
-| `eutils_esummary` | Compact summaries for a UID set: title, authors, journal, date |
-| `eutils_efetch` | Full records: PubMed abstracts, FASTA sequences, other formats |
-| `eutils_elink` | Follow links between databases, for example pubmed to pmc, or gene to protein |
-| `eutils_egquery` | Count matches across many databases at once |
-| `eutils_espell` | Spelling suggestion for a query |
-| `eutils_ecitmatch` | Resolve formatted citations to PMIDs |
-| `eutils_search_then_fetch` | Search and download in one call |
-| `eutils_link_then_fetch` | Follow links and download the target records in one call |
+| Tool                       | Purpose                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `eutils_einfo`             | List databases, or describe one database: searchable fields, links, record count |
+| `eutils_esearch`           | Search a database. Returns UIDs and a History handle                             |
+| `eutils_epost`             | Upload a UID list to the NCBI History server                                     |
+| `eutils_esummary`          | Compact summaries for a UID set: title, authors, journal, date                   |
+| `eutils_efetch`            | Full records: PubMed abstracts, FASTA sequences, other formats                   |
+| `eutils_elink`             | Follow links between databases, for example pubmed to pmc, or gene to protein    |
+| `eutils_egquery`           | Count matches across many databases at once                                      |
+| `eutils_espell`            | Spelling suggestion for a query                                                  |
+| `eutils_ecitmatch`         | Resolve formatted citations to PMIDs                                             |
+| `eutils_search_then_fetch` | Search and download in one call                                                  |
+| `eutils_link_then_fetch`   | Follow links and download the target records in one call                         |
 
 ### Working with large result sets
 
@@ -185,30 +188,50 @@ The fallback is lazy. If NCBI repairs the endpoint, the real EGQuery returns and
 
 ## Security
 
-| Threat | Control |
-|---|---|
+| Threat                                  | Control                                                                                                                                                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Prompt injection carried by record text | The server fences NCBI record text between `<<<EXTERNAL_NCBI_DATA` markers and labels it as data. It strips fence markers from the content, so the content cannot close the fence early. The server never writes, so it cannot become a deputy for a destructive action. |
-| Parameter injection | The server validates `db` against a character-class guard and a 38-database allowlist. It validates UIDs, search terms, and History fields before use. It encodes every value with `URLSearchParams` and never builds a URL by concatenation. |
-| API key leakage | The server masks `api_key` in every log line, error message, and response. It never echoes the constructed URL to the model. stdio logging goes to stderr only. |
-| SSRF | The base URL is a constant, not an environment setting. The client follows redirects manually, at most three hops, and every hop must end with `.ncbi.nlm.nih.gov`. |
-| Resource exhaustion | A token bucket, per-endpoint `retmax` ceilings, a 5 MB response ceiling, a request timeout, and bounded retries with backoff. |
-| Malicious XML | Entity processing is off. The client strips DOCTYPE declarations and caps the body size before parsing. |
-| Supply chain | Three runtime dependencies. The repository includes the lockfile. |
+| Parameter injection                     | The server validates `db` against a character-class guard and a 38-database allowlist. It validates UIDs, search terms, and History fields before use. It encodes every value with `URLSearchParams` and never builds a URL by concatenation.                            |
+| API key leakage                         | The server masks `api_key` in every log line, error message, and response. It never echoes the constructed URL to the model. stdio logging goes to stderr only.                                                                                                          |
+| SSRF                                    | The base URL is a constant, not an environment setting. The client follows redirects manually, at most three hops, and every hop must end with `.ncbi.nlm.nih.gov`.                                                                                                      |
+| Resource exhaustion                     | A token bucket, per-endpoint `retmax` ceilings, a 5 MB response ceiling, a request timeout, and bounded retries with backoff.                                                                                                                                            |
+| Malicious XML                           | Entity processing is off. The client strips DOCTYPE declarations and caps the body size before parsing.                                                                                                                                                                  |
+| Supply chain                            | Three runtime dependencies. The repository includes the lockfile.                                                                                                                                                                                                        |
 
 ## Development
 
 ```console
-npm test           # unit tests, no network
-npm run build      # strict TypeScript
-npm run test:live  # integration tests: every tool makes a real NCBI call
-npm run verify     # protocol smoke test over stdio, no live calls
+npm run ci             # everything CI runs, in one command
+npm test               # unit tests, no network
+npm run test:coverage  # unit tests with a coverage report and thresholds
+npm run build          # strict TypeScript
+npm run typecheck      # tsc --noEmit
+npm run lint           # ESLint
+npm run format         # Prettier, writes
+npm run test:live      # integration tests: every tool makes a real NCBI call
+npm run verify         # protocol smoke test over stdio, no live calls
 npm run verify:live
-npm run doctor     # probe all nine endpoints and report which work
+npm run doctor         # probe all nine endpoints and report which work
 npm run verify:evals
 npm run call eutils_esearch '{"db":"pubmed","term":"cancer","retmax":2}'
 ```
 
+`npm run ci` runs lint, a formatting check, the type check, coverage, and the build in
+that order. It is what the workflow in `.github/workflows/ci.yml` runs, so a green local
+run means a green pipeline.
+
 `npm run call` invokes one tool directly. It is the fastest way to inspect a response shape.
+
+### Reading the coverage number
+
+Statement coverage sits near 31% and branch coverage near 86%. The gap is not a gap in
+testing. The six tool registrars under `src/tools/` run only when the server starts, and
+the live and contract suites start it as a subprocess. The v8 coverage provider cannot see
+across that process boundary, so roughly 1,400 lines those suites do exercise appear
+uncovered. Branch coverage is the number to read.
+
+To raise the statement figure honestly, add in-process tests that call the tool handlers
+against a mocked `EutilsClient`. Do not lower the thresholds in `vitest.config.ts`.
 
 Run the inspector interactively:
 

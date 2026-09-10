@@ -79,7 +79,11 @@ export function validateRetmax(value: number | undefined, endpoint: keyof typeof
   const resolved = value ?? Math.min(20, cap);
 
   if (resolved < 0) {
-    throw new EutilsError('validation', 'retmax cannot be negative.', 'Use a value between 0 and the endpoint cap.');
+    throw new EutilsError(
+      'validation',
+      'retmax cannot be negative.',
+      'Use a value between 0 and the endpoint cap.',
+    );
   }
   if (resolved > cap) {
     throw new EutilsError(
@@ -102,11 +106,11 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
 }
 
 /** Validate a History reference supplied by the caller. */
-export function validateHistory(history: {
+export function validateHistory(history: { db: string; web_env: string; query_key: string }): {
   db: string;
   web_env: string;
   query_key: string;
-}): { db: string; web_env: string; query_key: string } {
+} {
   const db = validateDatabase(history.db);
   const webEnv = history.web_env.trim();
   const queryKey = history.query_key.trim();

@@ -8,7 +8,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { resultText, serverIsBuilt, StdioMcpClient } from './mcpClient.js';
+import { resultText, serverIsBuilt, StdioMcpClient, type JsonSchema } from './mcpClient.js';
 
 const live = process.env['EUTILS_LIVE'] === '1';
 const ready = live && serverIsBuilt();
@@ -101,8 +101,9 @@ describe.skipIf(!ready)('live E-utilities round trips', () => {
       retmax: 0,
       response_format: 'json',
     });
-    const history = (search.structuredContent as { history: { db: string; web_env: string; query_key: string } })
-      .history;
+    const history = (
+      search.structuredContent as { history: { db: string; web_env: string; query_key: string } }
+    ).history;
     expect(history.web_env).toBeTruthy();
 
     const summary = await client.callTool('eutils_esummary', {
@@ -303,5 +304,120 @@ describe.skipIf(!ready)('live E-utilities round trips', () => {
       retmax: 0,
     });
     expect(resultText(result)).not.toContain('api_key=');
+  });
+});
+
+/**
+ * Contract tests: every tool must return structured content that satisfies the
+ * outputSchema it advertises.
+ *
+ * Declaring an output schema and then drifting from it is worse than declaring
+ * nothing, because clients trust the declaration. These tests make the
+ * declaration binding.
+ */
+describe.skipIf(!ready)('outputSchema contract', () => {
+  let client: StdioMcpClient;
+  let schemas: Map<string, JsonSchema>;
+
+  beforeAll(async () => {
+    client = new StdioMcpClient();
+    await client.initialize();
+    const tools = await client.listTools();
+    schemas = new Map(tools.map((tool) => [tool.name, tool.outputSchema ?? {}]));
+  }, 60_000);
+
+  afterAll(() => client?.close());
+
+  /** Collect schema violations as readable paths. */
+  function violations(value: unknown, schema: JsonSchema, path: string): string[] {
+    const type = Array.isArray(schema.type) ? schema.type.find((t) => t !== 'null') : schema.type;
+    const out: string[] = [];
+
+    if (type === 'object') {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        return [`${path}: expected object`];
+      }
+      const record = value as Record<string, unknown>;
+      for (const key of schema.required ?? []) {
+        if (!(key in record)) out.push(`${path}.${key}: missing`);
+      }
+      for (const [key, sub] of Object.entries(schema.properties ?? {})) {
+        if (record[key] !== undefined) out.push(...violations(record[key], sub, `${path}.${key}`));
+      }
+      return out;
+    }
+
+    if (type === 'array') {
+      if (!Array.isArray(value)) return [`${path}: expected array`];
+      if (schema.items) {
+        value.forEach((item, index) => out.push(...violations(item, schema.items!, `${path}[${index}]`)));
+      }
+      return out;
+    }
+
+    if (type === 'string' && typeof value !== 'string') out.push(`${path}: expected string`);
+    if (type === 'number' && typeof value !== 'number') out.push(`${path}: expected number`);
+    if (type === 'boolean' && typeof value !== 'boolean') out.push(`${path}: expected boolean`);
+    return out;
+  }
+
+  /** Call a tool and assert its structured content matches its own schema. */
+  async function check(name: string, args: Record<string, unknown>): Promise<void> {
+    const result = await client.callTool(name, args);
+    expect(result.isError, `${name} returned an error`).toBeFalsy();
+
+    const schema = schemas.get(name);
+    expect(schema, `${name} declares no outputSchema`).toBeTruthy();
+
+    const found = violations(result.structuredContent, schema!, name);
+    expect(found, `${name} violates its outputSchema:\n  ${found.join('\n  ')}`).toEqual([]);
+  }
+
+  it('eutils_einfo (list mode) satisfies its schema', async () => {
+    await check('eutils_einfo', {});
+  });
+
+  it('eutils_einfo (describe mode) satisfies its schema', async () => {
+    await check('eutils_einfo', { db: 'pubmed' });
+  });
+
+  it('eutils_esearch satisfies its schema', async () => {
+    await check('eutils_esearch', { db: 'pubmed', term: 'CRISPR', retmax: 2 });
+  });
+
+  it('eutils_epost satisfies its schema', async () => {
+    await check('eutils_epost', { db: 'gene', uids: ['7173'] });
+  });
+
+  it('eutils_esummary satisfies its schema', async () => {
+    await check('eutils_esummary', { db: 'pubmed', uids: ['31452104'] });
+  });
+
+  it('eutils_efetch satisfies its schema', async () => {
+    await check('eutils_efetch', { db: 'protein', uids: ['NP_005537.3'], rettype: 'fasta' });
+  });
+
+  it('eutils_elink satisfies its schema', async () => {
+    await check('eutils_elink', { dbfrom: 'gene', db: 'protein', uids: ['7173'] });
+  });
+
+  it('eutils_egquery satisfies its schema', async () => {
+    await check('eutils_egquery', { term: 'mengo virus' });
+  });
+
+  it('eutils_espell satisfies its schema', async () => {
+    await check('eutils_espell', { db: 'pubmed', term: 'breast cancr' });
+  });
+
+  it('eutils_ecitmatch satisfies its schema', async () => {
+    await check('eutils_ecitmatch', { citations: ['science|1987|235|182|palmenberg ac|Art2|'] });
+  });
+
+  it('eutils_search_then_fetch satisfies its schema', async () => {
+    await check('eutils_search_then_fetch', { db: 'pubmed', term: 'Molegro Virtual Docker', retmax: 1 });
+  });
+
+  it('eutils_link_then_fetch satisfies its schema', async () => {
+    await check('eutils_link_then_fetch', { dbfrom: 'gene', db: 'protein', uids: ['7173'], retmax: 1 });
   });
 });

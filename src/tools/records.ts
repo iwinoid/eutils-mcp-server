@@ -3,9 +3,14 @@ import * as z from 'zod';
 import { BATCH_SIZE, DEFAULT_RETMAX, SEQUENCE_DATABASES } from '../constants.js';
 import { EutilsError } from '../types.js';
 import type { EutilsClient } from '../services/eutilsClient.js';
-import { errorResult, fenceUntrusted, pageInfo, respond, type ToolTextResult } from '../services/formatters.js';
+import {
+  errorResult,
+  fenceUntrusted,
+  pageInfo,
+  respond,
+  type ToolTextResult,
+} from '../services/formatters.js';
 import { chunk, validateRetmax } from '../services/validate.js';
-import { asArray, textOf } from '../services/xml.js';
 import { parseEsummary, type CompactRecord } from './parse.js';
 import {
   applySource,
@@ -17,21 +22,34 @@ import {
 } from './common.js';
 
 const EsummaryInput = z.object({
-  db: z.string().optional().describe('Entrez database, for example "pubmed". May be omitted when history is given.'),
+  db: z
+    .string()
+    .optional()
+    .describe('Entrez database, for example "pubmed". May be omitted when history is given.'),
   ...UidSourceShape,
-  retstart: z.number().int().min(0).optional().describe('Index of the first summary to return. Use with history.'),
+  retstart: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Index of the first summary to return. Use with history.'),
   retmax: z
     .number()
     .int()
     .min(1)
     .max(BATCH_SIZE, `retmax must be ${BATCH_SIZE} or fewer. Page with retstart, or split the UID list.`)
     .optional()
-    .describe(`Maximum summaries to return when using history (default ${DEFAULT_RETMAX}, max ${BATCH_SIZE}).`),
+    .describe(
+      `Maximum summaries to return when using history (default ${DEFAULT_RETMAX}, max ${BATCH_SIZE}).`,
+    ),
   response_format: ResponseFormatSchema,
 });
 
 const EfetchInput = z.object({
-  db: z.string().optional().describe('Entrez database, for example "pubmed". May be omitted when history is given.'),
+  db: z
+    .string()
+    .optional()
+    .describe('Entrez database, for example "pubmed". May be omitted when history is given.'),
   ...UidSourceShape,
   rettype: z
     .string()
@@ -43,7 +61,12 @@ const EfetchInput = z.object({
     .enum(['text', 'xml'])
     .optional()
     .describe('Response encoding. Default "text", which is what you want for abstracts and FASTA.'),
-  retstart: z.number().int().min(0).optional().describe('Index of the first record to return. Use with history.'),
+  retstart: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Index of the first record to return. Use with history.'),
   retmax: z
     .number()
     .int()
@@ -52,6 +75,26 @@ const EfetchInput = z.object({
     .optional()
     .describe(`Maximum records to return when using history (default ${DEFAULT_RETMAX}, max ${BATCH_SIZE}).`),
   response_format: ResponseFormatSchema,
+});
+
+const EsummaryOutput = z.looseObject({
+  database: z.string(),
+  total: z.number(),
+  count: z.number(),
+  offset: z.number(),
+  has_more: z.boolean(),
+  next_offset: z.number().optional(),
+  batches: z.number().optional().describe('Present when the UID list needed more than one request.'),
+  records: z.array(z.looseObject({ uid: z.string(), title: z.string().optional() })),
+});
+
+const EfetchOutput = z.looseObject({
+  database: z.string(),
+  rettype: z.string(),
+  retmode: z.string(),
+  record_count: z.number().optional(),
+  batches: z.number().optional(),
+  text: z.string().describe('Raw record text. The markdown rendering fences it as external data.'),
 });
 
 function renderRecordMarkdown(record: CompactRecord, index: number): string {
@@ -78,8 +121,19 @@ function renderRecordMarkdown(record: CompactRecord, index: number): string {
 
   // Any remaining scalar fields, for non-PubMed databases.
   const known = new Set([
-    'uid', 'title', 'authors', 'journal', 'pubdate', 'volume', 'issue',
-    'pages', 'doi', 'pmcid', 'pubtype', 'lang', 'source',
+    'uid',
+    'title',
+    'authors',
+    'journal',
+    'pubdate',
+    'volume',
+    'issue',
+    'pages',
+    'doi',
+    'pmcid',
+    'pubtype',
+    'lang',
+    'source',
   ]);
   for (const [key, value] of Object.entries(record)) {
     if (known.has(key)) continue;
@@ -99,9 +153,7 @@ async function runEsummary(
   const retstart = input.retstart ?? 0;
 
   const batches =
-    source.id !== undefined
-      ? chunk(source.id.split(','), BATCH_SIZE)
-      : [null as string[] | null];
+    source.id !== undefined ? chunk(source.id.split(','), BATCH_SIZE) : [null as string[] | null];
 
   const allRecords: CompactRecord[] = [];
   let total = source.count ?? 0;
@@ -168,10 +220,7 @@ export function defaultRettype(db: string, requested: string | undefined): strin
   );
 }
 
-async function runEfetch(
-  client: EutilsClient,
-  input: z.infer<typeof EfetchInput>,
-): Promise<ToolTextResult> {
+async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput>): Promise<ToolTextResult> {
   const source = resolveDbAndSource(input);
   const db = source.db;
   const rettype = defaultRettype(db, input.rettype);
@@ -224,9 +273,7 @@ async function runEfetch(
   const markdown = [
     `# EFetch: \`${db}\` records as ${rettype}/${retmode}`,
     '',
-    body.length > 0
-      ? fenceUntrusted(body)
-      : `No records returned. Verify the UIDs exist in \`${db}\`.`,
+    body.length > 0 ? fenceUntrusted(body) : `No records returned. Verify the UIDs exist in \`${db}\`.`,
     '',
     body.length > 0
       ? 'Next: use `eutils_elink` to find records in other databases linked to these.'
@@ -274,6 +321,7 @@ Error Handling:
   - Refuses to combine uids and history in one call
   - Rejects retmax above 500 rather than silently truncating`,
       inputSchema: EsummaryInput,
+      outputSchema: EsummaryOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
@@ -322,6 +370,7 @@ Error Handling:
   - Detects an error message returned as record text and reports it as a tool error
   - Refuses retmax above 500; larger sets are batched internally`,
       inputSchema: EfetchInput,
+      outputSchema: EfetchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {

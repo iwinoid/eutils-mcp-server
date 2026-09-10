@@ -10,6 +10,22 @@ export function serverIsBuilt(): boolean {
   return existsSync(SERVER_ENTRY);
 }
 
+/** Minimal JSON Schema shape, as emitted from the zod output schemas. */
+export interface JsonSchema {
+  type?: string | string[];
+  required?: string[];
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  anyOf?: JsonSchema[];
+}
+
+export interface McpToolInfo {
+  name: string;
+  description?: string;
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
+}
+
 export interface ToolCallResult {
   isError?: boolean;
   content?: Array<{ type: string; text?: string }>;
@@ -32,7 +48,11 @@ export class StdioMcpClient {
   constructor(env: Record<string, string> = {}) {
     this.child = spawn(process.execPath, [SERVER_ENTRY], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, NCBI_EMAIL: process.env['NCBI_EMAIL'] ?? 'eutils-mcp-server@example.com', ...env },
+      env: {
+        ...process.env,
+        NCBI_EMAIL: process.env['NCBI_EMAIL'] ?? 'eutils-mcp-server@example.com',
+        ...env,
+      },
     });
 
     this.child.stderr.on('data', (chunk: Buffer) => {
@@ -94,7 +114,7 @@ export class StdioMcpClient {
     return result;
   }
 
-  async listTools(): Promise<Array<{ name: string; description?: string }>> {
+  async listTools(): Promise<McpToolInfo[]> {
     const result = await this.send('tools/list', {});
     return result?.tools ?? [];
   }

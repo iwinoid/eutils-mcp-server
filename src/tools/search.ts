@@ -6,13 +6,8 @@ import type { EutilsClient } from '../services/eutilsClient.js';
 import { errorResult, pageInfo, respond, type ToolTextResult } from '../services/formatters.js';
 import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
 import { parseXml } from '../services/xml.js';
-import { parseEpost, parseEsearch, requireSection } from './parse.js';
-import {
-  READ_ONLY_ANNOTATIONS,
-  ResponseFormatSchema,
-  requireTerm,
-  STATEFUL_ANNOTATIONS,
-} from './common.js';
+import { parseEpost, parseEsearch } from './parse.js';
+import { ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
 
 const EsearchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed" or "protein".'),
@@ -26,18 +21,25 @@ const EsearchInput = z.object({
     .number()
     .int()
     .min(0)
-    .max(10_000, 'retmax must be 10000 or fewer. Use retmax=0 for a count only, or keep the set on the History server and page with retstart.')
+    .max(
+      10_000,
+      'retmax must be 10000 or fewer. Use retmax=0 for a count only, or keep the set on the History server and page with retstart.',
+    )
     .optional()
     .describe(`Maximum UIDs to return (default ${DEFAULT_RETMAX}). Use 0 to fetch only the count.`),
   retstart: z.number().int().min(0).optional().describe('Index of the first UID to return. Use for paging.'),
   sort: z
     .string()
     .optional()
-    .describe('Sort order, for example "pub_date", "relevance", or "first_author". Valid values vary by database.'),
+    .describe(
+      'Sort order, for example "pub_date", "relevance", or "first_author". Valid values vary by database.',
+    ),
   datetype: z
     .enum(['pdat', 'edat', 'mdat'])
     .optional()
-    .describe('Which date field mindate/maxdate apply to: pdat (publication), edat (Entrez), mdat (modification).'),
+    .describe(
+      'Which date field mindate/maxdate apply to: pdat (publication), edat (Entrez), mdat (modification).',
+    ),
   mindate: z.string().optional().describe('Start date, as YYYY, YYYY/MM, or YYYY/MM/DD. Requires datetype.'),
   maxdate: z.string().optional().describe('End date, as YYYY, YYYY/MM, or YYYY/MM/DD. Requires datetype.'),
   usehistory: z
@@ -55,6 +57,32 @@ const EpostInput = z.object({
     .union([z.string(), z.array(z.string())])
     .describe('UIDs or accessions to upload, as an array or a comma-separated string.'),
   response_format: ResponseFormatSchema,
+});
+
+const HistoryOutput = z.looseObject({
+  db: z.string().describe('Database the set belongs to.'),
+  web_env: z.string().describe('WebEnv cookie for the History server.'),
+  query_key: z.string().describe('Query key inside that web environment.'),
+});
+
+const EsearchOutput = z.looseObject({
+  database: z.string(),
+  term: z.string(),
+  total: z.number().describe('Records matching the whole query, not just this page.'),
+  count: z.number().describe('Records returned on this page.'),
+  offset: z.number(),
+  has_more: z.boolean(),
+  next_offset: z.number().optional(),
+  uids: z.array(z.string()),
+  query_translation: z.string().describe('How Entrez rewrote the query.'),
+  term_translations: z.array(z.looseObject({ from: z.string(), to: z.string() })),
+  history: HistoryOutput.optional().describe('Present when usehistory is true.'),
+});
+
+const EpostOutput = z.looseObject({
+  database: z.string(),
+  uploaded: z.number(),
+  history: HistoryOutput,
 });
 
 async function runEsearch(
@@ -75,11 +103,7 @@ async function runEsearch(
   if (useHistory) params['usehistory'] = 'y';
 
   const res = await client.request({ endpoint: 'esearch.fcgi', params });
-  const { total, uids, queryTranslation, translations, history } = parseEsearch(
-    res.json,
-    db,
-    useHistory,
-  );
+  const { total, uids, queryTranslation, translations, history } = parseEsearch(res.json, db, useHistory);
 
   const page = pageInfo(total, uids.length, retstart);
   const structured = {
@@ -99,7 +123,12 @@ async function runEsearch(
     '',
     queryTranslation ? `Query translated to: \`${queryTranslation}\`` : '',
     translations.length > 0
-      ? ['', '## How terms were expanded', '', translations.map((t) => `- \`${t.from}\` → ${t.to}`).join('\n')].join('\n')
+      ? [
+          '',
+          '## How terms were expanded',
+          '',
+          translations.map((t) => `- \`${t.from}\` → ${t.to}`).join('\n'),
+        ].join('\n')
       : '',
     '',
     uids.length > 0 ? `## UIDs\n\n${uids.join(', ')}` : 'No UIDs returned for this page.',
@@ -132,10 +161,7 @@ async function runEsearch(
   return respond({ structured, markdown, format: input.response_format });
 }
 
-async function runEpost(
-  client: EutilsClient,
-  input: z.infer<typeof EpostInput>,
-): Promise<ToolTextResult> {
+async function runEpost(client: EutilsClient, input: z.infer<typeof EpostInput>): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const uids = parseUids(input.uids);
 
@@ -223,6 +249,7 @@ Error Handling:
   - Rejects an unknown database and lists valid ones
   - Returns an empty result with spelling advice rather than an error`,
       inputSchema: EsearchInput,
+      outputSchema: EsearchOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
@@ -260,6 +287,7 @@ Error Handling:
   - Rejects UIDs containing URL metacharacters
   - Reports an upstream error if NCBI returns no History handle`,
       inputSchema: EpostInput,
+      outputSchema: EpostOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {

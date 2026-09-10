@@ -20,7 +20,10 @@ const SearchThenFetchInput = z.object({
     .max(500, 'retmax must be 500 or fewer. Page with the returned history handle instead.')
     .optional()
     .describe(`Records to download (default ${DEFAULT_RETMAX}, max 500).`),
-  rettype: z.string().optional().describe('Record format. Defaults to "abstract" for pubmed, "fasta" for sequences.'),
+  rettype: z
+    .string()
+    .optional()
+    .describe('Record format. Defaults to "abstract" for pubmed, "fasta" for sequences.'),
   retmode: z.enum(['text', 'xml']).optional().describe('Response encoding. Default "text".'),
   response_format: ResponseFormatSchema,
 });
@@ -43,6 +46,34 @@ const LinkThenFetchInput = z.object({
     .describe(`Records to download from the target database (default ${DEFAULT_RETMAX}, max 500).`),
   rettype: z.string().optional().describe('Record format for the target database.'),
   response_format: ResponseFormatSchema,
+});
+
+const HistoryRefOutput = z.looseObject({
+  db: z.string(),
+  web_env: z.string(),
+  query_key: z.string(),
+});
+
+const SearchThenFetchOutput = z.looseObject({
+  database: z.string(),
+  term: z.string(),
+  total: z.number(),
+  retrieved: z.number(),
+  rettype: z.string().optional(),
+  retmode: z.string().optional(),
+  history: HistoryRefOutput,
+  text: z.string(),
+});
+
+const LinkThenFetchOutput = z.looseObject({
+  dbfrom: z.string(),
+  dbto: z.string(),
+  source_total: z.number(),
+  retrieved: z.number().optional(),
+  rettype: z.string().optional(),
+  source_history: HistoryRefOutput.optional(),
+  history: HistoryRefOutput.optional(),
+  text: z.string(),
 });
 
 /** ESearch for a query, storing the set on the History server. */
@@ -70,11 +101,7 @@ async function searchToHistory(
 }
 
 /** Upload explicit UIDs to the History server. */
-async function postToHistory(
-  client: EutilsClient,
-  db: string,
-  uids: string[],
-): Promise<HistoryRef> {
+async function postToHistory(client: EutilsClient, db: string, uids: string[]): Promise<HistoryRef> {
   const res = await client.request({ endpoint: 'epost.fcgi', params: { db, id: uids.join(',') } });
 
   const parsed = parseXml(res.text);
@@ -315,6 +342,7 @@ Error Handling:
   - Refuses retmax above 500
   - Reports the ESearch count so you can judge whether to page`,
       inputSchema: SearchThenFetchInput,
+      outputSchema: SearchThenFetchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
@@ -359,6 +387,7 @@ Error Handling:
   - Returns an empty result with a hint to list link names when no links exist
   - Refuses retmax above 500`,
       inputSchema: LinkThenFetchInput,
+      outputSchema: LinkThenFetchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {

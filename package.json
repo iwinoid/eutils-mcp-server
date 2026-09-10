@@ -23,7 +23,14 @@
     "verify:evals": "npm run build && node scripts/verify-evals.mjs",
     "refresh:databases": "node scripts/refresh-databases.mjs",
     "clean": "rm -rf dist",
-    "doctor": "npm run build && node scripts/doctor.mjs"
+    "doctor": "npm run build && node scripts/doctor.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:coverage": "vitest run --coverage",
+    "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run build"
   },
   "engines": {
     "node": ">=18"
@@ -35,8 +42,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^2.0.0"
   }
 }

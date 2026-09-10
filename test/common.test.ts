@@ -7,12 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  applySource,
-  resolveDbAndSource,
-  resolveSource,
-  requireTerm,
-} from '../src/tools/common.js';
+import { applySource, resolveDbAndSource, resolveSource, requireTerm } from '../src/tools/common.js';
 import { EutilsError } from '../src/types.js';
 
 const GOOD_HISTORY = { db: 'pubmed', web_env: 'MCID_abc123', query_key: '1' };
@@ -51,21 +46,21 @@ describe('resolveSource', () => {
   // Regression: validateHistory existed and was unit tested, but nothing
   // called it, so a malformed web_env travelled all the way to NCBI.
   it('rejects a web_env containing an ampersand', () => {
-    expect(() =>
-      resolveSource({ history: { ...GOOD_HISTORY, web_env: 'abc&db=evil' } }, 'pubmed'),
-    ).toThrow(EutilsError);
+    expect(() => resolveSource({ history: { ...GOOD_HISTORY, web_env: 'abc&db=evil' } }, 'pubmed')).toThrow(
+      EutilsError,
+    );
   });
 
   it('rejects a web_env containing whitespace', () => {
-    expect(() =>
-      resolveSource({ history: { ...GOOD_HISTORY, web_env: 'abc def' } }, 'pubmed'),
-    ).toThrow(EutilsError);
+    expect(() => resolveSource({ history: { ...GOOD_HISTORY, web_env: 'abc def' } }, 'pubmed')).toThrow(
+      EutilsError,
+    );
   });
 
   it('rejects a non-numeric query_key', () => {
-    expect(() =>
-      resolveSource({ history: { ...GOOD_HISTORY, query_key: '1 OR 1' } }, 'pubmed'),
-    ).toThrow(EutilsError);
+    expect(() => resolveSource({ history: { ...GOOD_HISTORY, query_key: '1 OR 1' } }, 'pubmed')).toThrow(
+      EutilsError,
+    );
   });
 
   it('rejects a UID containing URL metacharacters', () => {

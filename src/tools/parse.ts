@@ -147,8 +147,12 @@ export function compactPubmed(uid: string, rec: Record<string, unknown>): Compac
     pages: textOf(rec['pages']),
     ...(doi ? { doi } : {}),
     ...(pmcid ? { pmcid } : {}),
-    pubtype: asArray(rec['pubtype']).map((t) => textOf(t)).filter((t) => t.length > 0),
-    lang: asArray(rec['lang']).map((t) => textOf(t)).filter((t) => t.length > 0),
+    pubtype: asArray(rec['pubtype'])
+      .map((t) => textOf(t))
+      .filter((t) => t.length > 0),
+    lang: asArray(rec['lang'])
+      .map((t) => textOf(t))
+      .filter((t) => t.length > 0),
   };
 }
 
@@ -205,9 +209,10 @@ export function parseEsummary(json: unknown, db: string): { uids: string[]; reco
  * empty result and silently reports zero links.
  */
 export function parseElink(json: unknown): ElinkParsed {
-  const linksets = asArray(
-    requireSection<Record<string, unknown>[]>(json, 'linksets', 'ELink'),
-  ) as Record<string, unknown>[];
+  const linksets = asArray(requireSection<Record<string, unknown>[]>(json, 'linksets', 'ELink')) as Record<
+    string,
+    unknown
+  >[];
 
   const groups: LinkGroup[] = [];
   const histories: HistoryRef[] = [];
@@ -251,8 +256,7 @@ export function parseElink(json: unknown): ElinkParsed {
 /** Parse the EGQuery XML body, which reports a count per database. */
 export function parseEgquery(xml: unknown): EgqueryEntry[] {
   const root = (xml as Record<string, unknown> | undefined)?.['eGQueryResult'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
 
   return (asArray(root?.['ResultItem']) as Record<string, unknown>[])
     .map((item) => ({
@@ -270,8 +274,7 @@ export function parseEspell(
   fallbackTerm: string,
 ): { query: string; corrected: string; changed: boolean } {
   const root = (xml as Record<string, unknown> | undefined)?.['eSpellResult'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
 
   const query = textOf(root?.['Query']) || fallbackTerm;
   const corrected = textOf(root?.['CorrectedQuery']);
@@ -286,8 +289,7 @@ export function parseEspell(
 /** Parse the EPost XML body and build its History reference. */
 export function parseEpost(xml: unknown, db: string): HistoryRef | undefined {
   const root = (xml as Record<string, unknown> | undefined)?.['ePostResult'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   return historyFrom(db, textOf(root?.['WebEnv']), textOf(root?.['QueryKey']));
 }
 

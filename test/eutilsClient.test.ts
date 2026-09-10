@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   EutilsClient,
   embeddedError,
@@ -187,9 +187,9 @@ describe('EutilsClient redirects', () => {
   it('refuses a redirect to a non-NCBI host', async () => {
     const { client, calls } = makeClient(async () => redirectResponse('https://evil.example.com/steal'));
 
-    await expect(
-      client.request({ endpoint: 'egquery.fcgi', params: { term: 'x' } }),
-    ).rejects.toBeInstanceOf(EutilsError);
+    await expect(client.request({ endpoint: 'egquery.fcgi', params: { term: 'x' } })).rejects.toBeInstanceOf(
+      EutilsError,
+    );
 
     expect(calls).toHaveLength(1);
   });
@@ -252,9 +252,12 @@ describe('EutilsClient errors', () => {
   });
 
   it('maps a network failure to a network error', async () => {
-    const { client } = makeClient(async () => {
-      throw new TypeError('fetch failed');
-    }, { maxRetries: 0 });
+    const { client } = makeClient(
+      async () => {
+        throw new TypeError('fetch failed');
+      },
+      { maxRetries: 0 },
+    );
 
     await expect(
       client.request({ endpoint: 'esearch.fcgi', params: { db: 'pubmed', term: 'x' } }),
@@ -262,11 +265,14 @@ describe('EutilsClient errors', () => {
   });
 
   it('maps a timeout to a timeout error', async () => {
-    const { client } = makeClient(async () => {
-      const error = new Error('timed out');
-      error.name = 'TimeoutError';
-      throw error;
-    }, { maxRetries: 0 });
+    const { client } = makeClient(
+      async () => {
+        const error = new Error('timed out');
+        error.name = 'TimeoutError';
+        throw error;
+      },
+      { maxRetries: 0 },
+    );
 
     await expect(
       client.request({ endpoint: 'esearch.fcgi', params: { db: 'pubmed', term: 'x' } }),

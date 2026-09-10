@@ -4,12 +4,12 @@ Probed against live NCBI on 2026-09-11. Every claim here was measured, not read.
 
 This file records four different kinds of problem, because they are easy to confuse:
 
-| Kind | Count | Fixed here? |
-|---|---|---|
-| Upstream defects we cannot fix | 1 | No. Mitigated. |
-| Undocumented upstream behaviour we had to discover | 4 | Documented here |
-| Errors in NCBI's published documentation | 4 | No. Reported here. |
-| Defects in this server, found and fixed | 4 | Yes |
+| Kind                                               | Count | Fixed here?        |
+| -------------------------------------------------- | ----- | ------------------ |
+| Upstream defects we cannot fix                     | 1     | No. Mitigated.     |
+| Undocumented upstream behaviour we had to discover | 4     | Documented here    |
+| Errors in NCBI's published documentation           | 4     | No. Reported here. |
+| Defects in this server, found and fixed            | 4     | Yes                |
 
 ---
 
@@ -23,15 +23,15 @@ hostname. That name is not published in public DNS.
 
 **Evidence.**
 
-| Test | Result |
-|---|---|
-| Cloudflare DoH, type A | NXDOMAIN, DNSSEC validated |
-| Google DoH, type A | NXDOMAIN |
-| Control: `eutils.ncbi.nlm.nih.gov` | resolves to 34.107.134.59 |
-| GET, POST, with and without `retmode`, `retmax`, `tool`, `email` | 301 every time |
-| Browser User-Agent, HTTP/1.0 | 301 every time |
-| Valid API key | still 301, while `esearch` returns 200 in the same session |
-| Invalid API key | `400 API key invalid` |
+| Test                                                             | Result                                                     |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| Cloudflare DoH, type A                                           | NXDOMAIN, DNSSEC validated                                 |
+| Google DoH, type A                                               | NXDOMAIN                                                   |
+| Control: `eutils.ncbi.nlm.nih.gov`                               | resolves to 34.107.134.59                                  |
+| GET, POST, with and without `retmode`, `retmax`, `tool`, `email` | 301 every time                                             |
+| Browser User-Agent, HTTP/1.0                                     | 301 every time                                             |
+| Valid API key                                                    | still 301, while `esearch` returns 200 in the same session |
+| Invalid API key                                                  | `400 API key invalid`                                      |
 
 The invalid-key result is the decisive one. It shows NCBI validates credentials
 **before** it routes the request, so the redirect is not a credentials or
@@ -67,24 +67,24 @@ server encodes all four.
 
 The documentation states a 10,000 limit. That limit applies to XML only.
 
-| Request | Result |
-|---|---|
+| Request                        | Result                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------ |
 | POST, 501 UIDs, `retmode=json` | `{"error":"Too many UIDs in request. Maximum number of UIDs is 500 for JSON"}` |
-| POST, 501 UIDs, `retmode=xml` | 200, 1.19 MB |
+| POST, 501 UIDs, `retmode=xml`  | 200, 1.19 MB                                                                   |
 
 `BATCH_SIZE = 500` in `src/constants.ts` comes from this measurement, not from
 the manual.
 
 ### JSON support is not uniform
 
-| Endpoint | `retmode=json` |
-|---|---|
-| `esearch`, `esummary`, `elink`, `einfo` | works |
-| `efetch` | no. Plain text works: `abstract`, `fasta` |
-| `egquery` | no |
-| `espell` | no. Returns HTTP 500 when asked for JSON |
-| `epost` | no. Returns HTTP 500 when asked for JSON |
-| `ecitmatch` | no. Returns pipe-delimited text |
+| Endpoint                                | `retmode=json`                            |
+| --------------------------------------- | ----------------------------------------- |
+| `esearch`, `esummary`, `elink`, `einfo` | works                                     |
+| `efetch`                                | no. Plain text works: `abstract`, `fasta` |
+| `egquery`                               | no                                        |
+| `espell`                                | no. Returns HTTP 500 when asked for JSON  |
+| `epost`                                 | no. Returns HTTP 500 when asked for JSON  |
+| `ecitmatch`                             | no. Returns pipe-delimited text           |
 
 The client picks the format per endpoint. No tool passes `retmode=json` to an
 endpoint that rejects it.
@@ -112,13 +112,13 @@ documented as the only supported value.
 
 Measured against the E-utilities manual edition dated 2026-09-08.
 
-| Claim | Reality |
-|---|---|
-| "a set of **eight** server-side programs" (front matter) | nine. Chapter 2 says nine. The manual contradicts itself. |
-| Table 1 lists `homologene`, `popset`, `probe`, `toolkit` as E-utility database names | all four return `Invalid db name specified` |
-| "records in the nuccore, nucest, nucgss, **popset**, and protein databases" | `popset` is gone |
-| ESummary limit is 10,000 | true for XML only. JSON caps at 500 |
-| Chapter 4 release notes | newest entry is 2015-06-24, eleven years stale |
+| Claim                                                                                | Reality                                                   |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| "a set of **eight** server-side programs" (front matter)                             | nine. Chapter 2 says nine. The manual contradicts itself. |
+| Table 1 lists `homologene`, `popset`, `probe`, `toolkit` as E-utility database names | all four return `Invalid db name specified`               |
+| "records in the nuccore, nucest, nucgss, **popset**, and protein databases"          | `popset` is gone                                          |
+| ESummary limit is 10,000                                                             | true for XML only. JSON caps at 500                       |
+| Chapter 4 release notes                                                              | newest entry is 2015-06-24, eleven years stale            |
 
 The JSON support matrix in section 2 does not appear anywhere in the manual.
 
@@ -159,4 +159,3 @@ The parser split on `\r?\n` only. Fixed to accept `\r`, `\n`, and `\r\n`.
 
 `nucest`, `nucgss`, and `popset` were listed as FASTA-capable. None is
 addressable. Found by `npm run refresh:databases`.
-

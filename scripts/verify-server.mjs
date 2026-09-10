@@ -112,13 +112,25 @@ try {
     clientInfo: { name: 'verify-server', version: '1.0.0' },
   });
   notify('notifications/initialized', {});
-  check('initialize returns serverInfo', init?.serverInfo?.name === 'eutils-mcp-server', JSON.stringify(init?.serverInfo));
-  check('a protocol version was negotiated', typeof init?.protocolVersion === 'string', init?.protocolVersion);
+  check(
+    'initialize returns serverInfo',
+    init?.serverInfo?.name === 'eutils-mcp-server',
+    JSON.stringify(init?.serverInfo),
+  );
+  check(
+    'a protocol version was negotiated',
+    typeof init?.protocolVersion === 'string',
+    init?.protocolVersion,
+  );
 
   console.log('\nTool listing');
   const list = await send('tools/list', {});
   const names = (list?.tools ?? []).map((tool) => tool.name);
-  check(`lists ${EXPECTED_TOOLS.length} tools`, names.length === EXPECTED_TOOLS.length, `saw ${names.length}: ${names.join(', ')}`);
+  check(
+    `lists ${EXPECTED_TOOLS.length} tools`,
+    names.length === EXPECTED_TOOLS.length,
+    `saw ${names.length}: ${names.join(', ')}`,
+  );
   for (const expected of EXPECTED_TOOLS) {
     check(`tool present: ${expected}`, names.includes(expected));
   }
@@ -135,7 +147,11 @@ try {
 
   console.log('\nTool calls');
   const einfo = await send('tools/call', { name: 'eutils_einfo', arguments: {} });
-  check('eutils_einfo lists databases', !einfo.isError && /Entrez databases \(38\)/.test(textOf(einfo)), textOf(einfo).slice(0, 200));
+  check(
+    'eutils_einfo lists databases',
+    !einfo.isError && /Entrez databases \(38\)/.test(textOf(einfo)),
+    textOf(einfo).slice(0, 200),
+  );
 
   const badDb = await send('tools/call', {
     name: 'eutils_esearch',
@@ -177,7 +193,11 @@ try {
       arguments: { db: 'protein', uids: ['NP_005537.3'], rettype: 'fasta' },
     });
     const fetchText = textOf(fetched);
-    check('eutils_efetch returns FASTA', !fetched.isError && /^>NP_005537/m.test(fetchText), fetchText.slice(0, 200));
+    check(
+      'eutils_efetch returns FASTA',
+      !fetched.isError && /^>NP_005537/m.test(fetchText),
+      fetchText.slice(0, 200),
+    );
     check('untrusted record text is fenced', /EXTERNAL_NCBI_DATA/.test(fetchText));
   }
 } catch (error) {

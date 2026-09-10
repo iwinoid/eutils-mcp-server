@@ -12,9 +12,7 @@ const EinfoInput = z.object({
   db: z
     .string()
     .optional()
-    .describe(
-      'Entrez database to describe, for example "pubmed" or "protein". Omit to list all databases.',
-    ),
+    .describe('Entrez database to describe, for example "pubmed" or "protein". Omit to list all databases.'),
   response_format: ResponseFormatSchema,
 });
 
@@ -27,6 +25,40 @@ const EspellInput = z.object({
   db: z.string().min(1).describe('Entrez database to check the spelling against, for example "pubmed".'),
   term: z.string().min(1).describe('Query whose spelling should be checked, for example "breast cancr".'),
   response_format: ResponseFormatSchema,
+});
+
+/**
+ * Output contracts.
+ *
+ * Loose objects: they name the fields a caller can rely on and permit the
+ * rest. A strict schema would break clients whenever NCBI adds a field.
+ */
+const EinfoOutput = z.looseObject({
+  count: z.number().optional().describe('Number of Entrez databases, when no db was given.'),
+  databases: z.array(z.string()).optional().describe('Database names, when no db was given.'),
+  database: z.string().optional().describe('Database name, when db was given.'),
+  record_count: z.number().optional(),
+  field_count: z.number().optional(),
+  fields: z.array(z.looseObject({ name: z.string(), fullname: z.string() })).optional(),
+  link_count: z.number().optional(),
+  links: z.array(z.looseObject({ name: z.string(), dbto: z.string() })).optional(),
+});
+
+const EgqueryOutput = z.looseObject({
+  term: z.string(),
+  databases_searched: z.number(),
+  databases_with_hits: z.number(),
+  hits: z.array(z.looseObject({ db: z.string(), count: z.number() })),
+  empty_databases: z.array(z.string()),
+  degraded: z.boolean().optional().describe('True when the fallback produced this result.'),
+  degraded_reason: z.string().optional(),
+});
+
+const EspellOutput = z.looseObject({
+  database: z.string(),
+  query: z.string(),
+  corrected_query: z.string(),
+  changed: z.boolean(),
 });
 
 interface DbField {
@@ -59,10 +91,7 @@ function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
   }));
 }
 
-async function runEinfo(
-  client: EutilsClient,
-  input: z.infer<typeof EinfoInput>,
-): Promise<ToolTextResult> {
+async function runEinfo(client: EutilsClient, input: z.infer<typeof EinfoInput>): Promise<ToolTextResult> {
   const params: Record<string, unknown> = { retmode: 'json' };
   if (input.db) params['db'] = validateDatabase(input.db);
 
@@ -82,7 +111,11 @@ async function runEinfo(
       dblist.map((name) => `- ${name}`).join('\n'),
     ].join('\n');
 
-    return respond({ structured: { count: dblist.length, databases: dblist }, markdown, format: input.response_format });
+    return respond({
+      structured: { count: dblist.length, databases: dblist },
+      markdown,
+      format: input.response_format,
+    });
   }
 
   const dbinfo = (asArray(root['dbinfo'])[0] ?? {}) as Record<string, unknown>;
@@ -189,7 +222,9 @@ async function runEgquery(
     '',
     hits.length > 0 ? '## Databases with matches' : '## No database matched this query',
     '',
-    hits.map((h) => `- **${h.db}**${h.menu ? ` (${h.menu})` : ''}: ${h.count.toLocaleString('en-US')}`).join('\n'),
+    hits
+      .map((h) => `- **${h.db}**${h.menu ? ` (${h.menu})` : ''}: ${h.count.toLocaleString('en-US')}`)
+      .join('\n'),
     '',
     `Databases with no matches: ${empty.length > 0 ? empty.map((e) => e.db).join(', ') : 'none'}`,
     '',
@@ -263,10 +298,7 @@ async function egqueryFallback(client: EutilsClient, term: string): Promise<Egqu
   return entries;
 }
 
-async function runEspell(
-  client: EutilsClient,
-  input: z.infer<typeof EspellInput>,
-): Promise<ToolTextResult> {
+async function runEspell(client: EutilsClient, input: z.infer<typeof EspellInput>): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
 
@@ -335,6 +367,7 @@ Error Handling:
   - Rejects a database name that is not one of the known Entrez databases, and lists samples
   - Returns a parse error if NCBI changes the response shape`,
       inputSchema: EinfoInput,
+      outputSchema: EinfoOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
@@ -376,6 +409,7 @@ Error Handling:
     databases, and says so in a "degraded" field. Counts are then a subset, not all 38.
   - The fallback triggers only on a network failure, never on a validation error.`,
       inputSchema: EgqueryInput,
+      outputSchema: EgqueryOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
@@ -409,6 +443,7 @@ Examples:
 Error Handling:
   - Reports changed=false when NCBI has no correction, rather than an error`,
       inputSchema: EspellInput,
+      outputSchema: EspellOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {

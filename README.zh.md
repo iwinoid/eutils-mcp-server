@@ -29,11 +29,11 @@ npm run build
 
 三个环境变量都可选。NCBI 要求自动化客户端表明身份。API key 能提高限流上限。
 
-| 变量 | 默认值 | 作用 |
-|---|---|---|
-| `NCBI_API_KEY` | 未设置 | 把上限从每秒 3 次提到每秒 10 次。在 [NCBI 账户](https://www.ncbi.nlm.nih.gov/account/)的设置页申请。 |
-| `NCBI_EMAIL` | 未设置 | 随每个请求发送的联系邮箱。NCBI 封 IP 前会先通知你。 |
-| `NCBI_TOOL` | `eutils-mcp-server` | 在 NCBI 日志里标识本软件的名字。 |
+| 变量           | 默认值              | 作用                                                                                                 |
+| -------------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
+| `NCBI_API_KEY` | 未设置              | 把上限从每秒 3 次提到每秒 10 次。在 [NCBI 账户](https://www.ncbi.nlm.nih.gov/account/)的设置页申请。 |
+| `NCBI_EMAIL`   | 未设置              | 随每个请求发送的联系邮箱。NCBI 封 IP 前会先通知你。                                                  |
+| `NCBI_TOOL`    | `eutils-mcp-server` | 在 NCBI 日志里标识本软件的名字。                                                                     |
 
 把值写进 MCP 宿主配置的 `env` 块。或者放在项目根目录的 `.env` 文件里，用 `--env-file-if-exists` 启动：
 
@@ -76,7 +76,10 @@ node --env-file-if-exists=.env dist/index.js
   "mcpServers": {
     "entrez": {
       "command": "node",
-      "args": ["--env-file-if-exists=/absolute/path/to/E-utilities/.env", "/absolute/path/to/E-utilities/dist/index.js"]
+      "args": [
+        "--env-file-if-exists=/absolute/path/to/E-utilities/.env",
+        "/absolute/path/to/E-utilities/dist/index.js"
+      ]
     }
   }
 }
@@ -114,19 +117,19 @@ Database **pubmed** matched **412** records. Showing 3 starting at 0.
 
 共 11 个工具。每个工具都接受 `response_format`，取值为 `"markdown"` 或 `"json"`，默认 markdown。每个工具都声明 `readOnlyHint: true` 和 `destructiveHint: false`。
 
-| 工具 | 用途 |
-|---|---|
-| `eutils_einfo` | 列出数据库，或描述单个库的可搜字段、链接、记录数 |
-| `eutils_esearch` | 检索数据库，返回 UID 和 History 句柄 |
-| `eutils_epost` | 把 UID 列表上传到 NCBI History 服务器 |
-| `eutils_esummary` | 取一批 UID 的摘要：标题、作者、期刊、日期 |
-| `eutils_efetch` | 取完整记录：PubMed 摘要、FASTA 序列及其他格式 |
-| `eutils_elink` | 跨库跳转，例如 pubmed 到 pmc，或 gene 到 protein |
-| `eutils_egquery` | 一次统计多个库的命中数 |
-| `eutils_espell` | 给出拼写建议 |
-| `eutils_ecitmatch` | 把格式化引文解析成 PMID |
-| `eutils_search_then_fetch` | 一次调用完成检索加下载 |
-| `eutils_link_then_fetch` | 一次调用完成跳转加下载目标记录 |
+| 工具                       | 用途                                             |
+| -------------------------- | ------------------------------------------------ |
+| `eutils_einfo`             | 列出数据库，或描述单个库的可搜字段、链接、记录数 |
+| `eutils_esearch`           | 检索数据库，返回 UID 和 History 句柄             |
+| `eutils_epost`             | 把 UID 列表上传到 NCBI History 服务器            |
+| `eutils_esummary`          | 取一批 UID 的摘要：标题、作者、期刊、日期        |
+| `eutils_efetch`            | 取完整记录：PubMed 摘要、FASTA 序列及其他格式    |
+| `eutils_elink`             | 跨库跳转，例如 pubmed 到 pmc，或 gene 到 protein |
+| `eutils_egquery`           | 一次统计多个库的命中数                           |
+| `eutils_espell`            | 给出拼写建议                                     |
+| `eutils_ecitmatch`         | 把格式化引文解析成 PMID                          |
+| `eutils_search_then_fetch` | 一次调用完成检索加下载                           |
+| `eutils_link_then_fetch`   | 一次调用完成跳转加下载目标记录                   |
 
 ### 处理大数据集
 
@@ -185,30 +188,47 @@ NCBI 的 `egquery.fcgi` 返回 HTTP 301，跳转到 `ext-http-eutils.linkerd.ncb
 
 ## 安全
 
-| 威胁 | 控制措施 |
-|---|---|
+| 威胁                   | 控制措施                                                                                                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 记录文本携带的提示注入 | 服务端把 NCBI 记录文本夹在 `<<<EXTERNAL_NCBI_DATA` 标记之间，并标注为数据。它会从内容里剥掉标记本身，内容无法提前闭合围栏。服务端从不写入，因此无法被当作破坏性操作的代理人。 |
-| 参数注入 | 服务端用字符集校验加 38 库白名单校验 `db`。UID、检索词、History 字段在使用前都会校验。所有值都用 `URLSearchParams` 编码，从不拼接 URL。 |
-| API key 泄漏 | 服务端在每一行日志、每条错误消息、每个响应里都遮蔽 `api_key`。它从不把拼好的 URL 回显给模型。stdio 日志只写 stderr。 |
-| SSRF | base URL 是常量，不通过环境变量配置。客户端手动跟随重定向，最多三跳，且每一跳的主机名必须以 `.ncbi.nlm.nih.gov` 结尾。 |
-| 资源耗尽 | 令牌桶、每个接口的 `retmax` 上限、5 MB 响应体上限、请求超时，以及有上限的退避重试。 |
-| 恶意 XML | 关闭实体处理。客户端在解析前剥掉 DOCTYPE 声明，并限制响应体大小。 |
-| 供应链 | 只有三个运行时依赖。lockfile 已提交。 |
+| 参数注入               | 服务端用字符集校验加 38 库白名单校验 `db`。UID、检索词、History 字段在使用前都会校验。所有值都用 `URLSearchParams` 编码，从不拼接 URL。                                       |
+| API key 泄漏           | 服务端在每一行日志、每条错误消息、每个响应里都遮蔽 `api_key`。它从不把拼好的 URL 回显给模型。stdio 日志只写 stderr。                                                          |
+| SSRF                   | base URL 是常量，不通过环境变量配置。客户端手动跟随重定向，最多三跳，且每一跳的主机名必须以 `.ncbi.nlm.nih.gov` 结尾。                                                        |
+| 资源耗尽               | 令牌桶、每个接口的 `retmax` 上限、5 MB 响应体上限、请求超时，以及有上限的退避重试。                                                                                           |
+| 恶意 XML               | 关闭实体处理。客户端在解析前剥掉 DOCTYPE 声明，并限制响应体大小。                                                                                                             |
+| 供应链                 | 只有三个运行时依赖。lockfile 已提交。                                                                                                                                         |
 
 ## 开发
 
 ```console
-npm test           # 单元测试，不联网
-npm run build      # strict TypeScript
-npm run test:live  # 集成测试：每个工具都真实调用 NCBI
-npm run verify     # stdio 协议冒烟测试，不真实调用
+npm run ci             # CI 跑的全部检查，一条命令
+npm test               # 单元测试，不联网
+npm run test:coverage  # 带覆盖率报告与阈值的单元测试
+npm run build          # strict TypeScript
+npm run typecheck      # tsc --noEmit
+npm run lint           # ESLint
+npm run format         # Prettier，会写文件
+npm run test:live      # 集成测试：每个工具都真实调用 NCBI
+npm run verify         # stdio 协议冒烟测试，不真实调用
 npm run verify:live
-npm run doctor     # 探测全部九个接口，报告哪些可用
+npm run doctor         # 探测全部九个接口，报告哪些可用
 npm run verify:evals
 npm run call eutils_esearch '{"db":"pubmed","term":"cancer","retmax":2}'
 ```
 
+`npm run ci` 依次跑 lint、格式检查、类型检查、覆盖率和构建。它等同于
+`.github/workflows/ci.yml` 里的流程。本地通过即流水线通过。
+
 `npm run call` 直接调用单个工具。查看响应结构时它最快。
+
+### 怎么看覆盖率数字
+
+语句覆盖率约 31%，分支覆盖率约 86%。这个差距不是测试缺口。`src/tools/` 下的六个
+工具注册器只在服务启动时执行，而集成测试是把它作为子进程启动的。v8 覆盖率提供器
+看不到跨进程的代码，所以这些测试确实跑过的大约 1400 行会显示为未覆盖。看分支覆盖率。
+
+想老实提高语句覆盖率，就补上直接调用工具处理函数、用 mock `EutilsClient` 的进程内
+测试。不要为了过构建去调低 `vitest.config.ts` 里的阈值。
 
 交互式检查：
 

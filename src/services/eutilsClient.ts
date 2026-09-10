@@ -177,10 +177,7 @@ export class EutilsClient {
   }
 
   /** Follow redirects manually, validating every hop's host. */
-  private async fetchFollowingRedirects(
-    initialUrl: string,
-    init: RequestInit,
-  ): Promise<Response> {
+  private async fetchFollowingRedirects(initialUrl: string, init: RequestInit): Promise<Response> {
     let url = initialUrl;
     let response = await this.fetchImpl(url, { ...init, redirect: 'manual' });
 
@@ -304,10 +301,7 @@ export class EutilsClient {
       }
     }
 
-    throw (
-      lastError ??
-      new EutilsError('network', 'Request failed after retries.', 'Retry later.')
-    );
+    throw lastError ?? new EutilsError('network', 'Request failed after retries.', 'Retry later.');
   }
 
   private tryParseJson(text: string, contentType: string): unknown {
@@ -331,7 +325,11 @@ export class EutilsClient {
       );
     }
     if (status === 404) {
-      return new EutilsError('not_found', 'NCBI returned 404 for this request.', 'Check the database name and UID values.');
+      return new EutilsError(
+        'not_found',
+        'NCBI returned 404 for this request.',
+        'Check the database name and UID values.',
+      );
     }
     if (status >= 500) {
       return new EutilsError(

@@ -55,10 +55,12 @@ const block = `export const ENTREZ_DATABASES = [\n${databases.map((db) => `  '${
 // Use the local calendar date so the stamp matches what a reader sees.
 const now = new Date();
 const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-const before = source.slice(0, start).replace(
-  /captured from `einfo\.fcgi\?retmode=json` \(dblist\)\n \* on \d{4}-\d{2}-\d{2}\./,
-  `captured from \`einfo.fcgi?retmode=json\` (dblist)\n * on ${stamp}.`,
-);
+const before = source
+  .slice(0, start)
+  .replace(
+    /captured from `einfo\.fcgi\?retmode=json` \(dblist\)\n \* on \d{4}-\d{2}-\d{2}\./,
+    `captured from \`einfo.fcgi?retmode=json\` (dblist)\n * on ${stamp}.`,
+  );
 
 writeFileSync(constantsPath, before + block + source.slice(end + '] as const;'.length));
 

@@ -19,10 +19,21 @@ const ElinkInput = z.object({
   db: z
     .string()
     .optional()
-    .describe('Target database to find links in, for example "pmc". Omit to find related records in the same database.'),
+    .describe(
+      'Target database to find links in, for example "pmc". Omit to find related records in the same database.',
+    ),
   ...UidSourceShape,
   cmd: z
-    .enum(['neighbor', 'neighbor_score', 'neighbor_history', 'acheck', 'ncheck', 'lcheck', 'llinks', 'prlinks'])
+    .enum([
+      'neighbor',
+      'neighbor_score',
+      'neighbor_history',
+      'acheck',
+      'ncheck',
+      'lcheck',
+      'llinks',
+      'prlinks',
+    ])
     .optional()
     .describe(
       'Link command. "neighbor" returns linked UIDs immediately (default). "neighbor_history" stores them on the History server and returns a handle.',
@@ -30,7 +41,9 @@ const ElinkInput = z.object({
   linkname: z
     .string()
     .optional()
-    .describe('Specific link to follow, for example "pubmed_pmc". Call eutils_einfo to list valid link names.'),
+    .describe(
+      'Specific link to follow, for example "pubmed_pmc". Call eutils_einfo to list valid link names.',
+    ),
   response_format: ResponseFormatSchema,
 });
 
@@ -44,10 +57,44 @@ const EcitmatchInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-async function runElink(
-  client: EutilsClient,
-  input: z.infer<typeof ElinkInput>,
-): Promise<ToolTextResult> {
+const ElinkOutput = z.looseObject({
+  dbfrom: z.string(),
+  dbto: z.string().optional(),
+  command: z.string(),
+  groups_found: z.number(),
+  total_linked: z.number(),
+  groups: z.array(
+    z.looseObject({
+      dbto: z.string(),
+      linkname: z.string(),
+      count: z.number(),
+      ids: z.array(z.string()),
+      query_key: z.string().optional(),
+    }),
+  ),
+  histories: z
+    .array(z.looseObject({ db: z.string(), web_env: z.string(), query_key: z.string() }))
+    .optional()
+    .describe('Present when cmd is neighbor_history.'),
+});
+
+const EcitmatchOutput = z.looseObject({
+  submitted: z.number(),
+  matched: z.number(),
+  records: z.array(
+    z.looseObject({
+      journal: z.string(),
+      year: z.string(),
+      volume: z.string(),
+      first_page: z.string(),
+      key: z.string(),
+      pmid: z.string(),
+      matched: z.boolean(),
+    }),
+  ),
+});
+
+async function runElink(client: EutilsClient, input: z.infer<typeof ElinkInput>): Promise<ToolTextResult> {
   const dbfrom = validateDatabase(input.dbfrom);
   const dbto = input.db ? validateDatabase(input.db) : undefined;
   const source = resolveSource(input, dbfrom);
@@ -122,7 +169,9 @@ async function runEcitmatch(
   client: EutilsClient,
   input: z.infer<typeof EcitmatchInput>,
 ): Promise<ToolTextResult> {
-  const cleaned = input.citations.map((citation) => citation.trim()).filter((citation) => citation.length > 0);
+  const cleaned = input.citations
+    .map((citation) => citation.trim())
+    .filter((citation) => citation.length > 0);
 
   if (cleaned.length === 0) {
     throw new EutilsError(
@@ -216,6 +265,7 @@ Error Handling:
   - Rejects a history whose db does not match dbfrom
   - Returns an empty result with a hint to list valid link names via eutils_einfo`,
       inputSchema: ElinkInput,
+      outputSchema: ElinkOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
@@ -256,6 +306,7 @@ Error Handling:
   - Rejects a citation string with fewer than six pipe-separated fields
   - Reports matched=false per citation when NCBI finds no corresponding record`,
       inputSchema: EcitmatchInput,
+      outputSchema: EcitmatchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {

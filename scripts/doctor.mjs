@@ -25,14 +25,31 @@ console.log(`  rate limit ${apiKey ? 10 : 3} requests/second\n`);
 /** One probe per endpoint, using the smallest request that exercises it. */
 const probes = [
   { name: 'einfo', path: 'einfo.fcgi', params: { db: 'pubmed', retmode: 'json' } },
-  { name: 'esearch', path: 'esearch.fcgi', params: { db: 'pubmed', term: 'cancer', retmax: '1', retmode: 'json' } },
+  {
+    name: 'esearch',
+    path: 'esearch.fcgi',
+    params: { db: 'pubmed', term: 'cancer', retmax: '1', retmode: 'json' },
+  },
   { name: 'esummary', path: 'esummary.fcgi', params: { db: 'pubmed', id: '31452104', retmode: 'json' } },
-  { name: 'efetch', path: 'efetch.fcgi', params: { db: 'pubmed', id: '31452104', rettype: 'abstract', retmode: 'text' } },
-  { name: 'elink', path: 'elink.fcgi', params: { dbfrom: 'pubmed', db: 'pmc', id: '31452104', retmode: 'json' } },
+  {
+    name: 'efetch',
+    path: 'efetch.fcgi',
+    params: { db: 'pubmed', id: '31452104', rettype: 'abstract', retmode: 'text' },
+  },
+  {
+    name: 'elink',
+    path: 'elink.fcgi',
+    params: { dbfrom: 'pubmed', db: 'pmc', id: '31452104', retmode: 'json' },
+  },
   { name: 'epost', path: 'epost.fcgi', params: { db: 'pubmed', id: '31452104' } },
   { name: 'espell', path: 'espell.fcgi', params: { db: 'pubmed', term: 'breast cancr' } },
   { name: 'egquery', path: 'egquery.fcgi', params: { term: 'cancer' } },
-  { name: 'ecitmatch', path: 'ecitmatch.cgi', params: { db: 'pubmed', retmode: 'xml', bdata: 'science|1987|235|182|palmenberg ac|A|' }, post: true },
+  {
+    name: 'ecitmatch',
+    path: 'ecitmatch.cgi',
+    params: { db: 'pubmed', retmode: 'xml', bdata: 'science|1987|235|182|palmenberg ac|A|' },
+    post: true,
+  },
 ];
 
 const results = [];

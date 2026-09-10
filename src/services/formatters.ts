@@ -1,10 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import {
-  CHARACTER_LIMIT,
-  UNTRUSTED_CLOSE,
-  UNTRUSTED_NOTICE,
-  UNTRUSTED_OPEN,
-} from '../constants.js';
+import { CHARACTER_LIMIT, UNTRUSTED_CLOSE, UNTRUSTED_NOTICE, UNTRUSTED_OPEN } from '../constants.js';
 import { EutilsError, type ResponseFormat } from '../types.js';
 
 /**
@@ -23,7 +18,11 @@ export type ToolTextResult = CallToolResult;
  * outside the marked region.
  */
 export function sanitizeUntrusted(text: string): string {
-  return text.split(UNTRUSTED_OPEN).join('[fence-marker-removed]').split(UNTRUSTED_CLOSE).join('[fence-marker-removed]');
+  return text
+    .split(UNTRUSTED_OPEN)
+    .join('[fence-marker-removed]')
+    .split(UNTRUSTED_CLOSE)
+    .join('[fence-marker-removed]');
 }
 
 /**
@@ -33,12 +32,7 @@ export function sanitizeUntrusted(text: string): string {
  * they are fenced and labelled rather than returned bare.
  */
 export function fenceUntrusted(text: string): string {
-  return [
-    UNTRUSTED_NOTICE,
-    UNTRUSTED_OPEN,
-    sanitizeUntrusted(text),
-    UNTRUSTED_CLOSE,
-  ].join('\n');
+  return [UNTRUSTED_NOTICE, UNTRUSTED_OPEN, sanitizeUntrusted(text), UNTRUSTED_CLOSE].join('\n');
 }
 
 export interface TruncationResult {

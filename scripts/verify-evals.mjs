@@ -131,7 +131,10 @@ const solvers = [
         rettype: 'fasta',
       });
       const header = fasta.text.split('\n')[0];
-      return header.replace(/^>\S+\s+/, '').replace(/\s*\[[^\]]*\]\s*$/, '').trim();
+      return header
+        .replace(/^>\S+\s+/, '')
+        .replace(/\s*\[[^\]]*\]\s*$/, '')
+        .trim();
     },
   },
   {
@@ -205,5 +208,7 @@ for (const [index, pair] of pairs.entries()) {
 }
 
 child.kill();
-console.log(`\n${failures === 0 ? `ALL ${pairs.length} EVALUATION ANSWERS VERIFIED` : `${failures} ANSWER(S) WRONG`}`);
+console.log(
+  `\n${failures === 0 ? `ALL ${pairs.length} EVALUATION ANSWERS VERIFIED` : `${failures} ANSWER(S) WRONG`}`,
+);
 process.exit(failures === 0 ? 0 : 1);
