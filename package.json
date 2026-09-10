@@ -1,7 +1,7 @@
 {
   "name": "eutils-mcp-server",
   "version": "0.0.1",
-  "description": "MCP server exposing the NCBI Entrez Programming Utilities (E-utilities) as LLM tools",
+  "description": "MCP server exposing the nine NCBI Entrez E-utilities as eleven read-only tools",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
