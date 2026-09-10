@@ -169,7 +169,7 @@ NCBI 的 `egquery.fcgi` 返回 HTTP 301，跳转到 `ext-http-eutils.linkerd.ncb
 
 带 API key 也没用。同一次会话里，带有效 key 的 `esearch` 返回 200，而 `egquery` 仍返回 301。带语法无效的 key 时，`egquery` 返回 `400 API key invalid`。这个结果说明 NCBI 在路由之前先校验密钥。所以该跳转不是凭据或限流决策。
 
-运行 `npm run doctor` 可以在你自己的网络上复现这个结论。
+运行 `npm run doctor` 可以在你自己的网络上复现这个结论。完整证据链，以及构建本服务期间发现的其他上游缺陷，见 [docs/upstream-issues.md](docs/upstream-issues.md)。
 
 ### 服务端的处理
 

@@ -169,7 +169,7 @@ Every parameter combination tried redirects: GET and POST, with and without `ret
 
 An API key does not help. With a valid key, `esearch` returns 200 while `egquery` still returns 301 in the same session. A syntactically invalid key makes `egquery` return `400 API key invalid` instead. That result shows NCBI validates the key before it routes the request. The redirect is therefore not a credentials or rate-limit decision.
 
-Run `npm run doctor` to reproduce the finding on your own network.
+Run `npm run doctor` to reproduce the finding on your own network. The full evidence chain, and the other upstream defects found while building this server, are in [docs/upstream-issues.md](docs/upstream-issues.md).
 
 ### What the server does
 
