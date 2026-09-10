@@ -3,6 +3,7 @@
 [中文](README.zh.md) · English
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
 MCP server exposing the nine NCBI Entrez E-utilities as eleven read-only tools.
 
@@ -306,5 +307,3 @@ NCBI supplies the data. If you redistribute this software or its output, NCBI's
 [Disclaimer and Copyright notice](https://www.ncbi.nlm.nih.gov/About/disclaimer.html)
 must be evident to users. PubMed abstracts can be protected by copyright. Redistribution
 beyond fair use needs the permission of the copyright holder.
-
-[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

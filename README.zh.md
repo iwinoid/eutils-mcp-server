@@ -3,6 +3,7 @@
 中文 · [English](README.md)
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
 把 NCBI 的九个 Entrez E-utilities 包装成 11 个只读工具的 MCP server。
 
@@ -274,5 +275,3 @@ pull request。
 数据由 NCBI 提供。若你再分发本软件或其输出，必须让用户看到 NCBI 的
 [免责声明与版权声明](https://www.ncbi.nlm.nih.gov/About/disclaimer.html)。PubMed 摘要可能
 受版权保护。超出合理使用的再分发需要版权所有者许可。
-
-[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
