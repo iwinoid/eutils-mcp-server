@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!DOCTYPE eSpellResult PUBLIC "-//NLM//DTD eSpellResult, 23 November 2004//EN" "https://www.ncbi.nlm.nih.gov/entrez/query/DTD/eSpell.dtd">
+<eSpellResult>
+	<Database>pubmed</Database>
+	<Query>breast cancr</Query>
+	<CorrectedQuery>breast cancer</CorrectedQuery>
+	<SpelledQuery><Original>breast </Original><Replaced>cancer</Replaced></SpelledQuery>
+	<ERROR/>
+</eSpellResult>

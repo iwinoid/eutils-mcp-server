@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Evaluation set for eutils-mcp-server.
+
+  Every answer was verified by running the tools against NCBI on 2026-09-11.
+  Questions are read-only, independent, and answerable with a single stable
+  string. Counts and dates are deliberately never asked for, because PubMed
+  grows and those answers would drift.
+-->
+<evaluation>
+
+  <qa_pair>
+    <question>A 1991 paper by Mann BJ appeared in volume 88 of the Proceedings of the National Academy of Sciences, starting at page 3248. Look it up by its citation fields only (you do not have its PMID), then report the journal abbreviation that NCBI shows for the matching record.</question>
+    <answer>Proc Natl Acad Sci U S A</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>A 1987 paper by Palmenberg AC appeared in Science volume 235, first page 182. Resolve it from its citation fields alone, then report the DOI that NCBI lists for the resulting record.</question>
+    <answer>10.1126/science.3026048</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Entrez Gene record 7173 has an official gene symbol assigned by the nomenclature committee. What is it?</question>
+    <answer>TPO</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Find the NCBI Taxonomy record for humans, then report the common name that record carries.</question>
+    <answer>human</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Using the database metadata for PubMed, find the searchable field whose full name is "MeSH Terms", and report its short field tag exactly as NCBI spells it.</question>
+    <answer>MESH</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>The RefSeq protein accession NP_005537.3 belongs to one organism. Which organism does NCBI name for it? Give the scientific name.</question>
+    <answer>Homo sapiens</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Fetch the FASTA record for RefSeq protein NP_005537.3. On the description line, report the protein description that follows the accession, excluding the organism given in square brackets.</question>
+    <answer>tyrosine-protein kinase ITK/TSK</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>NCBI Gene record 7173 is linked to records in the Protein database. What is the name of the link that connects these two databases?</question>
+    <answer>gene_protein</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Report the RefSeq accession shown as the caption of the Nucleotide record with the accession.version identifier NM_000547.5.</question>
+    <answer>NM_000547</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>A researcher searches PubMed for "mengo vius" and gets nothing useful. Ask NCBI for a spelling suggestion, and report the corrected query it proposes.</question>
+    <answer>mengo virus</answer>
+  </qa_pair>
+
+</evaluation>

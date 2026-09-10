@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local npm cache. .npmrc points npm here so it never writes outside the project.
+.npmcache/
+
+# Secrets. .env holds NCBI_API_KEY. The server reads it only when launched
+# with --env-file-if-exists=.env, which npm start and npm run dev pass.
+.env
+.env.*
+
+# Tool scratch. The MCP Inspector writes its catalog here.
+.mcp-inspector/
+coverage/
+*.log
+
+# Reference material. The NCBI E-utilities manual is copyrighted and lives at
+# https://www.ncbi.nlm.nih.gov/books/NBK25501/ — link it, do not vendor it.
+E-utilities.pdf
+
+# OS noise
+.DS_Store
+Thumbs.db

@@ -1,0 +1,42 @@
+{
+  "name": "eutils-mcp-server",
+  "version": "0.0.1",
+  "description": "MCP server exposing the NCBI Entrez Programming Utilities (E-utilities) as LLM tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "eutils-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "npm run build && EUTILS_LIVE=1 vitest run test/live.test.ts",
+    "verify": "npm run build && node scripts/verify-server.mjs",
+    "verify:live": "npm run build && node scripts/verify-server.mjs --live",
+    "call": "node scripts/call-tool.mjs",
+    "verify:evals": "npm run build && node scripts/verify-evals.mjs",
+    "refresh:databases": "node scripts/refresh-databases.mjs",
+    "clean": "rm -rf dist",
+    "doctor": "npm run build && node scripts/doctor.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "fast-xml-parser": "^5.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.0.0"
+  }
+}
