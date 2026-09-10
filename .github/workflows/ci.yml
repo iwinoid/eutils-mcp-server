@@ -48,6 +48,9 @@ jobs:
       - name: Protocol smoke test
         run: node scripts/verify-server.mjs
 
+      - name: Threat model cross-file consistency
+        run: npm run verify:threat-model
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
