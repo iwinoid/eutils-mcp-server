@@ -28,6 +28,11 @@ E-utilities.pdf
 # reproducible part of the evaluation.
 evals/HANDOFF.md
 
+# Local-only design record. The approved 2026-09-11 spec drove this
+# implementation, but it is working notes, not user documentation.
+# It stays on disk and out of version control.
+docs/superpowers/
+
 # OS noise
 .DS_Store
 Thumbs.db
