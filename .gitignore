@@ -22,6 +22,12 @@ coverage/
 # https://www.ncbi.nlm.nih.gov/books/NBK25501/ — link it, do not vendor it.
 E-utilities.pdf
 
+# Local-only notes. evals/HANDOFF.md documents this machine's harness setup
+# with absolute local paths. Others don't need it; the tracked
+# evals/eutils_evaluation.xml plus scripts/verify-evals.mjs are the
+# reproducible part of the evaluation.
+evals/HANDOFF.md
+
 # OS noise
 .DS_Store
 Thumbs.db
