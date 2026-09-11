@@ -4,7 +4,7 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.0.1   | ✅        |
+| 0.1.0   | ✅        |
 
 Only the latest release receives security fixes. If you are on an older
 commit, upgrade first and confirm the issue still reproduces.

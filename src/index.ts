@@ -17,7 +17,7 @@ function warn(message: string): void {
 }
 
 function readPackageVersion(): string {
-  return process.env['npm_package_version'] ?? '0.0.1';
+  return process.env['npm_package_version'] ?? '0.1.0';
 }
 
 if (!process.env['NCBI_EMAIL']) {
