@@ -22,8 +22,7 @@ lowers a coverage threshold instead of raising coverage will be sent back.
 ## Requirements
 
 - Node.js 22, as pinned in `.nvmrc`.
-- `npm run ci` passes: lint, format check, type check, coverage, build, and the
-  threat-model consistency check.
+- `npm run ci` passes: lint, format check, type check, coverage, and build.
 - New behaviour comes with a test. A bug fix comes with a test that fails before the fix.
 - Live tests are separate. They call NCBI, so they are not part of `npm run ci`.
 
@@ -47,7 +46,6 @@ npm test
 | `npm run format`               | Prettier, writes                                      |
 | `npm run typecheck`            | `tsc --noEmit`                                        |
 | `npm run verify`               | Protocol smoke test over stdio. No live calls.        |
-| `npm run verify:threat-model`  | Cross-file consistency of the threat model report     |
 | `npm run doctor`               | Probe all nine endpoints and report which answer      |
 | `npm run call <tool> '<json>'` | Invoke one tool directly                              |
 
@@ -87,11 +85,10 @@ src/
     links.ts            ELink, ECitMatch
     workflows.ts        search_then_fetch, link_then_fetch
     registry.ts         registers all eleven tools
-scripts/                operator tooling and the threat-model validator
+scripts/                operator tooling
 test/                   unit tests, live tests, and captured NCBI fixtures
-docs/                   design record and the upstream defect log
-evals/                  evaluation question set and the handoff for running it
-threat-model-*/         STRIDE-A report, one folder per analysis
+docs/                   upstream defect log
+evals/                  evaluation question set
 ```
 
 ## Code of Conduct

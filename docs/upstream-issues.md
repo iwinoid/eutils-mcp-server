@@ -145,7 +145,7 @@ asserts that `linksets` is an array at the top level.
 ### History validation was never called
 
 `validateHistory` existed and had unit tests, but no caller invoked it. A
-malformed `web_env` travelled to NCBI untouched, so threat-model control 2 was
+malformed `web_env` travelled to NCBI untouched, so History-field validation was
 documentation rather than code.
 
 Fixed by routing `resolveSource` through `validateHistory`, and `test/common.test.ts`

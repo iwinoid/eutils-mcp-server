@@ -12,6 +12,8 @@ dist/
 # with --env-file-if-exists=.env, which npm start and npm run dev pass.
 .env
 .env.*
+# ...but the placeholder template is meant to be committed.
+!.env.example
 
 # Tool scratch. The MCP Inspector writes its catalog here.
 .mcp-inspector/
@@ -32,6 +34,13 @@ evals/HANDOFF.md
 # implementation, but it is working notes, not user documentation.
 # It stays on disk and out of version control.
 docs/superpowers/
+
+# Local-only threat-model reports. Each analysis run writes one dated folder
+# on this machine, and the report metadata names the machine. Readers don't
+# need them. scripts/verify-threat-model.mjs is the local validator for those
+# reports, so it stays local too; both keep working on disk.
+threat-model-*/
+scripts/verify-threat-model.mjs
 
 # OS noise
 .DS_Store

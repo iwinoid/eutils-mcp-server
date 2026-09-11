@@ -8,14 +8,7 @@ import tseslint from 'typescript-eslint';
  */
 export default tseslint.config(
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      '.npmcache/**',
-      '.mcp-inspector/**',
-      'threat-model-*/**',
-      'coverage/**',
-    ],
+    ignores: ['dist/**', 'node_modules/**', '.npmcache/**', '.mcp-inspector/**', 'coverage/**'],
   },
   ...tseslint.configs.recommended,
   {

@@ -10,11 +10,6 @@ node_modules/
 # property that makes them useful: that they are exactly what NCBI returned.
 test/fixtures/
 
-# Generated threat model reports. They are produced by the analysis workflow and
-# checked by an external verification pass that reads table structure. A
-# formatter that rewraps a table can invalidate that check.
-threat-model-*/
-
 # Binary reference material
 E-utilities.pdf
 

@@ -223,10 +223,9 @@ changes.
 
 ## Security
 
-The server is read-only and holds no listener. It never writes to disk. A
-[STRIDE-A threat model](threat-model-20260910-201423/0-assessment.md) covers the system.
-Its principal conclusion is that no component is reachable by an unauthenticated network
-attacker.
+The server is read-only and holds no listener. It never writes to disk. There is
+no port for an attacker to connect to: the only network traffic is outbound HTTPS
+from the server to NCBI.
 
 | Threat                                  | Control                                                                                                                                                                                                                                                                  |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
