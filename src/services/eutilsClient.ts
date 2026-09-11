@@ -5,6 +5,8 @@ import {
   MAX_REDIRECTS,
   MAX_RESPONSE_BYTES,
   MAX_RETRIES,
+  POST_THRESHOLD_UIDS,
+  POST_THRESHOLD_URL_LENGTH,
   REQUEST_TIMEOUT_MS,
 } from '../constants.js';
 import { EutilsError, type QueryParams } from '../types.js';
@@ -172,7 +174,7 @@ export class EutilsClient {
     const search = this.buildParams(params);
     const urlLength = BASE_URL.length + endpoint.length + 1 + search.toString().length;
     const uidCount = params['id'] ? String(params['id']).split(',').length : 0;
-    if (urlLength > 1800 || uidCount > 200) return 'POST';
+    if (urlLength > POST_THRESHOLD_URL_LENGTH || uidCount > POST_THRESHOLD_UIDS) return 'POST';
     return 'GET';
   }
 

@@ -158,7 +158,7 @@ async function runEsummary(
   const allRecords: CompactRecord[] = [];
   let total = source.count ?? 0;
 
-  for (const [index, batch] of batches.entries()) {
+  for (const batch of batches) {
     const params: Record<string, unknown> = { retmode: 'json' };
     if (batch === null) {
       applySource(params, source);
@@ -174,7 +174,6 @@ async function runEsummary(
     allRecords.push(...records);
 
     if (batches.length === 1) total = source.count ?? uids.length;
-    void index;
   }
 
   const offset = source.id !== undefined ? 0 : retstart;
