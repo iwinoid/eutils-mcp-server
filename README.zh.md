@@ -2,8 +2,7 @@
 
 中文 · [English](README.md)
 
-[![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
-[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+[![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme) [![CI](https://img.shields.io/github/actions/workflow/status/iwinoid/eutils-mcp-server/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/iwinoid/eutils-mcp-server/actions) [![LICENSE MIT](https://img.shields.io/badge/LICENSE-MIT-blue?style=flat-square)](LICENSE) [![POWERED BY DEEPSEEK](https://img.shields.io/badge/POWERED_BY-DEEPSEEK-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
 把 NCBI 的九个 Entrez E-utilities 包装成 11 个只读工具的 MCP server。
 
