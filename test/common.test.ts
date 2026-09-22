@@ -24,6 +24,14 @@ describe('resolveSource', () => {
     expect(resolveSource({ uids: '1,2,3' }, 'gene').id).toBe('1,2,3');
   });
 
+  it('accepts a stringified JSON array end to end', () => {
+    // Regression: the pre-split in resolveSource used to shred this spelling
+    // before parseUids ever saw it.
+    const source = resolveSource({ uids: '["31452104", "31452105"]' }, 'pubmed');
+    expect(source.id).toBe('31452104,31452105');
+    expect(source.count).toBe(2);
+  });
+
   it('accepts a History reference', () => {
     const source = resolveSource({ history: GOOD_HISTORY }, 'pubmed');
     expect(source.webEnv).toBe('MCID_abc123');

@@ -279,7 +279,25 @@ async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput
       : 'Next: confirm the UIDs with `eutils_esearch` in the same database.',
   ].join('\n');
 
-  return respond({ structured, markdown, format: input.response_format });
+  return respond({
+    structured,
+    markdown,
+    format: input.response_format,
+    // A single record larger than the limit cannot be paged with retstart,
+    // which moves between records, not within one. Keep head and tail so the
+    // abstract and conclusions survive, and say so instead of promising paging.
+    ...(recordCount === 1
+      ? {
+          truncate: {
+            strategy: 'head-tail' as const,
+            guidance:
+              'This is a single record larger than the limit: retstart pages between records, ' +
+              'not within one. Read the abstract first (rettype="abstract" for pubmed), ' +
+              'or fetch fewer records per call.',
+          },
+        }
+      : {}),
+  });
 }
 
 /** Register ESummary and EFetch. */

@@ -42,15 +42,56 @@ export interface TruncationResult {
   message?: string;
 }
 
+export interface TruncateOptions {
+  /**
+   * `head` keeps the first `limit` characters. `head-tail` keeps the head
+   * plus the last `tailChars` characters with an omission marker between
+   * them, for a single oversized record where paging between records cannot
+   * help. Defaults to `head`.
+   */
+  strategy?: 'head' | 'head-tail';
+  /** Tail size for `head-tail`. Defaults to 5,000, capped at half the limit. */
+  tailChars?: number;
+  /** Extra caller-specific advice appended to the truncation message. */
+  guidance?: string;
+}
+
+/** Default tail size for `head-tail` truncation. */
+export const DEFAULT_TAIL_CHARS = 5_000;
+
 /** Cap a rendered result, telling the caller how to see the rest. */
-export function truncateWithNotice(text: string, limit: number = CHARACTER_LIMIT): TruncationResult {
+export function truncateWithNotice(
+  text: string,
+  limit: number = CHARACTER_LIMIT,
+  options: TruncateOptions = {},
+): TruncationResult {
   if (text.length <= limit) {
     return { text, truncated: false, originalLength: text.length };
   }
-  const kept = text.slice(0, limit);
-  const message =
-    `Response truncated from ${text.length} to ${limit} characters. ` +
-    `Use 'retstart' to page through the set, lower 'retmax', or add filters to narrow the query.`;
+
+  const strategy = options.strategy ?? 'head';
+  let kept: string;
+  let base: string;
+
+  if (strategy === 'head-tail') {
+    const tailChars = Math.min(options.tailChars ?? DEFAULT_TAIL_CHARS, Math.floor(limit / 2));
+    const headChars = limit - tailChars;
+    const omitted = text.length - limit;
+    kept =
+      `${text.slice(0, headChars)}\n\n` +
+      `[... ${omitted.toLocaleString('en-US')} characters omitted ...]\n\n` +
+      text.slice(text.length - tailChars);
+    base =
+      `Response truncated from ${text.length} to ${limit} characters (head and tail kept). ` +
+      `Use 'retstart' to page through the set, lower 'retmax', or add filters to narrow the query.`;
+  } else {
+    kept = text.slice(0, limit);
+    base =
+      `Response truncated from ${text.length} to ${limit} characters. ` +
+      `Use 'retstart' to page through the set, lower 'retmax', or add filters to narrow the query.`;
+  }
+
+  const message = options.guidance ? `${base} ${options.guidance}` : base;
   return {
     text: `${kept}\n\n[TRUNCATED] ${message}`,
     truncated: true,
@@ -63,12 +104,13 @@ export interface RespondInput {
   structured: Record<string, unknown>;
   markdown: string;
   format: ResponseFormat;
+  truncate?: TruncateOptions;
 }
 
 /** Render a successful tool result in the requested format, with truncation applied. */
 export function respond(input: RespondInput): ToolTextResult {
   const body = input.format === 'json' ? JSON.stringify(input.structured, null, 2) : input.markdown;
-  const { text, truncated, message } = truncateWithNotice(body);
+  const { text, truncated, message } = truncateWithNotice(body, CHARACTER_LIMIT, input.truncate ?? {});
 
   const structured = truncated
     ? { ...input.structured, truncated: true, truncation_message: message }

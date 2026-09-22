@@ -63,6 +63,25 @@ describe('truncateWithNotice', () => {
     expect(result.text.slice(0, 100)).toBe('x'.repeat(100));
     expect(result.text.endsWith(result.message!)).toBe(true);
   });
+
+  it('keeps head and tail for a single oversized record', () => {
+    const text = `${'H'.repeat(150)}${'T'.repeat(50)}`;
+    const result = truncateWithNotice(text, 100, { strategy: 'head-tail', tailChars: 20 });
+    expect(result.truncated).toBe(true);
+    expect(result.originalLength).toBe(200);
+    expect(result.text).toContain('H'.repeat(80));
+    expect(result.text).toContain('T'.repeat(20));
+    expect(result.text).toContain('100 characters omitted');
+    expect(result.text).toContain('[TRUNCATED]');
+  });
+
+  it('appends caller guidance to the truncation message', () => {
+    const result = truncateWithNotice('x'.repeat(200), 100, {
+      guidance: 'Read the abstract first.',
+    });
+    expect(result.message).toContain('Read the abstract first.');
+    expect(result.text.endsWith(result.message!)).toBe(true);
+  });
 });
 
 describe('respond', () => {

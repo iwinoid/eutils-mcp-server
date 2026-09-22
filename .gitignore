@@ -45,3 +45,6 @@ scripts/verify-threat-model.mjs
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Scratch space for ad-hoc queries and test output. Never committed.
+scratch/

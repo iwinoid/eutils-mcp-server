@@ -80,6 +80,26 @@ describe('parseUids', () => {
   it('rejects an empty list', () => {
     expect(() => parseUids('')).toThrow(EutilsError);
   });
+
+  it('accepts a stringified JSON array, as models often send one', () => {
+    expect(parseUids('["1", "2"]')).toEqual(['1', '2']);
+  });
+
+  it('accepts a stringified array with newlines and numbers', () => {
+    expect(parseUids('[\n  31452104,\n  "31452105"\n]')).toEqual(['31452104', '31452105']);
+  });
+
+  it('still rejects a hostile element inside a stringified array', () => {
+    expect(() => parseUids('["1&db=evil"]')).toThrow(EutilsError);
+  });
+
+  it('rejects an empty stringified array as an empty list', () => {
+    expect(() => parseUids('[]')).toThrow(EutilsError);
+  });
+
+  it('treats a non-JSON bracket string as an ordinary invalid list', () => {
+    expect(() => parseUids('[abc')).toThrow(EutilsError);
+  });
 });
 
 describe('validateRetmax', () => {

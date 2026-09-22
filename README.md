@@ -184,7 +184,9 @@ NCBI asks that large jobs run at a weekend. On a weekday, run them between 21:00
 - **PubMed and PMC caps.** ESearch reaches only the first 10,000 records of a PubMed or
   PMC result set. Add date filters to segment a larger set.
 - **Truncation.** The server cuts a response over 25,000 characters. The message says how
-  to page or narrow the query.
+  to page or narrow the query. A single record larger than the limit keeps its head
+  and tail with an omission marker, because `retstart` pages between records, not
+  within one.
 - **Response ceiling.** The client abandons a response body over 5 MB.
 - **stdio only.** No HTTP transport. To add one, bind `127.0.0.1` and validate the
   `Origin` and `Host` headers.

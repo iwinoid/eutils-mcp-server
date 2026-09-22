@@ -44,9 +44,15 @@ export function validateDatabase(value: string): string {
  *
  * UIDs are opaque to us, so they are only checked for shape: non-empty,
  * no whitespace, no URL metacharacters.
+ *
+ * Models and some hosts serialise an array into a string such as
+ * `'["31452104", "31452105"]'` before it reaches us. When a string looks
+ * like a JSON array it is parsed first; every element still passes through
+ * the same character guard below, so the leniency admits no new input
+ * shape beyond plain UIDs and accessions.
  */
 export function parseUids(input: string | string[]): string[] {
-  const raw = Array.isArray(input) ? input : input.split(',');
+  const raw = Array.isArray(input) ? input : splitUidString(input);
   const uids: string[] = [];
 
   for (const item of raw) {
@@ -71,6 +77,22 @@ export function parseUids(input: string | string[]): string[] {
   }
 
   return uids;
+}
+
+/** Split a UID string, accepting a stringified JSON array as one spelling. */
+function splitUidString(input: string): string[] {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item));
+      }
+    } catch {
+      // Fall through to comma splitting so the caller gets the usual error.
+    }
+  }
+  return input.split(',');
 }
 
 /** Enforce a per-endpoint retmax ceiling, refusing rather than clamping. */

@@ -99,8 +99,10 @@ export function resolveSource(
   }
 
   if (hasUids && input.uids !== undefined) {
-    const list = Array.isArray(input.uids) ? input.uids : String(input.uids).split(',');
-    const cleaned = parseUids(list);
+    // Pass the raw value through: parseUids splits comma strings itself and
+    // also accepts a stringified JSON array, so pre-splitting here would
+    // break the latter spelling.
+    const cleaned = parseUids(input.uids);
     return { db: defaultDb, id: cleaned.join(','), count: cleaned.length };
   }
 

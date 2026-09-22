@@ -5,6 +5,9 @@ node_modules/
 .npmcache/
 .mcp-inspector/
 
+# Harness memory files are machine-written session notes, not source.
+.memsearch/
+
 # Verbatim NCBI captures. These are byte-faithful responses recorded from the
 # live API and used as parser fixtures. Reformatting them would destroy the
 # property that makes them useful: that they are exactly what NCBI returned.
