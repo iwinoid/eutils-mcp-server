@@ -48,3 +48,6 @@ Thumbs.db
 
 # Scratch space for ad-hoc queries and test output. Never committed.
 scratch/
+
+# Harness memory files. Machine-written session notes, local only.
+.memsearch/
