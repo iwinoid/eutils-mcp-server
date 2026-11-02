@@ -345,6 +345,128 @@ describe('ELink output', () => {
     expect(result.structuredContent.groups).toEqual([]);
   });
 });
+describe('ELink date filters', () => {
+  it('sends reldate and datetype for a PubMed neighbor', async () => {
+    const harness = createHarness(() => json(loadJson('elink-links.json')));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      datetype: 'pdat',
+      reldate: 30,
+      response_format: 'json',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(harness.calls[0]?.params).toMatchObject({
+      dbfrom: 'pubmed',
+      db: 'pubmed',
+      datetype: 'pdat',
+      reldate: 30,
+    });
+  });
+  it('sends a mindate and maxdate range together', async () => {
+    const harness = createHarness(() => json(loadJson('elink-links.json')));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      datetype: 'edat',
+      mindate: '2020',
+      maxdate: '2024',
+      response_format: 'json',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(harness.calls[0]?.params).toMatchObject({
+      datetype: 'edat',
+      mindate: '2020',
+      maxdate: '2024',
+    });
+  });
+  it('allows date filters with neighbor_history', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      cmd: 'neighbor_history',
+      datetype: 'pdat',
+      reldate: 7,
+      response_format: 'json',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(harness.calls[0]?.params).toMatchObject({ cmd: 'neighbor_history', reldate: 7 });
+  });
+  it('rejects date filters outside PubMed', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'protein',
+      uids: ['15718680'],
+      datetype: 'pdat',
+      reldate: 7,
+    });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+    expect(String(result.content[0]?.text)).toContain('dbfrom="pubmed"');
+  });
+  it('rejects date filters on neighbor_score', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      cmd: 'neighbor_score',
+      datetype: 'pdat',
+      reldate: 7,
+    });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+    expect(String(result.content[0]?.text)).toContain('does not accept date filters');
+  });
+  it('rejects datetype without a date filter', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      datetype: 'pdat',
+    });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+    expect(String(result.content[0]?.text)).toContain('requires reldate');
+  });
+  it('rejects reldate without datetype', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      reldate: 7,
+    });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+    expect(String(result.content[0]?.text)).toContain('require datetype');
+  });
+  it('rejects an incomplete date range', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      datetype: 'pdat',
+      mindate: '2020',
+    });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+    expect(String(result.content[0]?.text)).toContain('mindate and maxdate');
+  });
+  it('rejects reldate combined with a range', async () => {
+    const harness = createHarness(() => json({ linksets: [] }));
+    const result = await harness.call('eutils_elink', {
+      dbfrom: 'pubmed',
+      uids: ['19880848'],
+      datetype: 'pdat',
+      reldate: 7,
+      mindate: '2020',
+      maxdate: '2024',
+    });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+    expect(String(result.content[0]?.text)).toContain('cannot be combined');
+  });
+});
 describe('ECitMatch request', () => {
   it('sends rettype=xml with retmode=xml and CR-joined bdata', async () => {
     const harness = createHarness(() => text('science|1987|235|182|palmenberg ac|Art2|3026048'));

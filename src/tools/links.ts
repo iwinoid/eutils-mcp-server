@@ -68,6 +68,26 @@ const ELinkInput = z.object({
     .describe(
       'Return accession.version identifiers instead of GI numbers for sequence databases. Only "acc" is supported.',
     ),
+  datetype: z
+    .enum(['pdat', 'edat', 'mdat'])
+    .optional()
+    .describe(
+      'Date field for reldate or mindate/maxdate. Only with cmd="neighbor" or cmd="neighbor_history" and dbfrom="pubmed".',
+    ),
+  reldate: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Only include linked records with a datetype date in the last N days.'),
+  mindate: z
+    .string()
+    .optional()
+    .describe('Start of a datetype date range, as YYYY, YYYY/MM, or YYYY/MM/DD. Requires maxdate.'),
+  maxdate: z
+    .string()
+    .optional()
+    .describe('End of a datetype date range, as YYYY, YYYY/MM, or YYYY/MM/DD. Requires mindate.'),
   response_format: ResponseFormatSchema,
 });
 const ECitMatchInput = z.object({
@@ -164,6 +184,7 @@ const LINK_NAME_PATTERN = /^[a-z0-9_]{1,64}$/;
 const HOLDING_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 const LINK_NAME_COMMANDS = new Set(['neighbor', 'neighbor_history']);
 const TERM_COMMANDS = new Set(['neighbor', 'neighbor_score', 'neighbor_history']);
+const DATE_COMMANDS = new Set(['neighbor', 'neighbor_history']);
 function validateLinkName(value: string): string {
   const linkname = value.trim();
   if (!LINK_NAME_PATTERN.test(linkname)) {
@@ -393,6 +414,56 @@ async function runELink(
     }
     params['idtype'] = 'acc';
   }
+  const hasDateRange =
+    input.reldate !== undefined || input.mindate !== undefined || input.maxdate !== undefined;
+  if (input.datetype !== undefined || hasDateRange) {
+    if (!DATE_COMMANDS.has(command)) {
+      throw new EUtilsError(
+        'validation',
+        `cmd="${command}" does not accept date filters.`,
+        'Use datetype, reldate, mindate, and maxdate only with cmd="neighbor" or cmd="neighbor_history".',
+      );
+    }
+    if (dbfrom !== 'pubmed') {
+      throw new EUtilsError(
+        'validation',
+        `Date filters require dbfrom="pubmed", not "${dbfrom}".`,
+        'Omit the date filters, or link from PubMed.',
+      );
+    }
+    if (input.datetype === undefined) {
+      throw new EUtilsError(
+        'validation',
+        'Date filters require datetype.',
+        'Pass datetype ("pdat", "edat", or "mdat") with reldate or mindate/maxdate.',
+      );
+    }
+    if (!hasDateRange) {
+      throw new EUtilsError(
+        'validation',
+        'datetype requires reldate or mindate/maxdate.',
+        'Pass a date filter alongside datetype.',
+      );
+    }
+    if ((input.mindate === undefined) !== (input.maxdate === undefined)) {
+      throw new EUtilsError(
+        'validation',
+        'mindate and maxdate must be used together.',
+        'Pass both bounds, or use reldate instead.',
+      );
+    }
+    if (input.reldate !== undefined && (input.mindate !== undefined || input.maxdate !== undefined)) {
+      throw new EUtilsError(
+        'validation',
+        'reldate cannot be combined with mindate/maxdate.',
+        'Use either reldate or the mindate/maxdate range.',
+      );
+    }
+    params['datetype'] = input.datetype;
+    if (input.reldate !== undefined) params['reldate'] = input.reldate;
+    if (input.mindate !== undefined) params['mindate'] = input.mindate;
+    if (input.maxdate !== undefined) params['maxdate'] = input.maxdate;
+  }
   switch (command) {
     case 'acheck':
       if (dbto !== undefined) params['db'] = dbto;
@@ -563,6 +634,9 @@ Args:
   - term (string, optional): Entrez query that limits the linked set. Only with a same-database neighbor command.
   - holding (string, optional): LinkOut provider abbreviation, for example "CTgov". Only with cmd="llinks".
   - idtype ("acc", optional): return accession.version identifiers instead of GI numbers for sequence databases.
+  - datetype ('pdat' | 'edat' | 'mdat', optional): date field for reldate or mindate/maxdate. Only with cmd="neighbor" or cmd="neighbor_history" and dbfrom="pubmed".
+  - reldate (number, optional): only linked records with a datetype date in the last N days. Requires datetype.
+  - mindate, maxdate (string, optional): datetype date range as YYYY, YYYY/MM, or YYYY/MM/DD. Use both bounds together.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Supply either uids or history, never both.
@@ -584,6 +658,7 @@ Examples:
 Error Handling:
   - Rejects a history whose db does not match dbfrom
   - Rejects parameters the chosen cmd does not accept
+  - Rejects date filters outside cmd="neighbor"/"neighbor_history" or outside dbfrom="pubmed"
   - Returns an empty result with a hint to list valid link names via eutils_einfo`,
       inputSchema: ELinkInput,
       outputSchema: ELinkOutput,
