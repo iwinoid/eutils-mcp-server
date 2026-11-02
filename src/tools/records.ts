@@ -3,13 +3,7 @@ import * as z from 'zod';
 import { BATCH_SIZE, DEFAULT_RETMAX, SEQUENCE_DATABASES } from '../constants.js';
 import { EutilsError } from '../types.js';
 import type { EutilsClient } from '../services/eutilsClient.js';
-import {
-  errorResult,
-  fenceUntrusted,
-  pageInfo,
-  respond,
-  type ToolTextResult,
-} from '../services/formatters.js';
+import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { chunk, validateRetmax } from '../services/validate.js';
 import { parseEsummary, type CompactRecord } from './parse.js';
 import {
@@ -79,7 +73,12 @@ const EfetchInput = z.object({
 
 const EsummaryOutput = z.looseObject({
   database: z.string(),
-  total: z.number(),
+  total: z
+    .number()
+    .optional()
+    .describe(
+      'Total records in the set when known; omitted for History reads because ESummary does not report a total.',
+    ),
   count: z.number(),
   offset: z.number(),
   has_more: z.boolean(),
@@ -156,32 +155,37 @@ async function runEsummary(
     source.id !== undefined ? chunk(source.id.split(','), BATCH_SIZE) : [null as string[] | null];
 
   const allRecords: CompactRecord[] = [];
-  let total = source.count ?? 0;
+  const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esummary');
 
   for (const batch of batches) {
     const params: Record<string, unknown> = { retmode: 'json' };
     if (batch === null) {
       applySource(params, source);
       params['retstart'] = retstart;
-      params['retmax'] = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esummary');
+      params['retmax'] = pageSize;
     } else {
       params['db'] = db;
       params['id'] = batch.join(',');
     }
 
     const res = await client.request({ endpoint: 'esummary.fcgi', params });
-    const { uids, records } = parseEsummary(res.json, db);
+    const { records } = parseEsummary(res.json, db);
     allRecords.push(...records);
-
-    if (batches.length === 1) total = source.count ?? uids.length;
   }
 
   const offset = source.id !== undefined ? 0 : retstart;
-  const page = pageInfo(total === 0 ? allRecords.length : total, allRecords.length, offset);
+  const count = allRecords.length;
+  const total = source.id !== undefined ? count : undefined;
+  const hasMore = source.id === undefined && pageSize > 0 && count === pageSize;
+  const nextOffset = hasMore ? retstart + count : undefined;
 
   const structured = {
     database: db,
-    ...page,
+    ...(total !== undefined ? { total } : {}),
+    count,
+    offset,
+    has_more: hasMore,
+    ...(nextOffset !== undefined ? { next_offset: nextOffset } : {}),
     ...(batches.length > 1 ? { batches: batches.length } : {}),
     records: allRecords,
   };
@@ -189,15 +193,19 @@ async function runEsummary(
   const markdown = [
     `# ESummary: ${allRecords.length} summary record(s) from \`${db}\``,
     '',
-    total > 0 ? `${total.toLocaleString('en-US')} record(s) in this set.` : '',
+    total !== undefined
+      ? `${total.toLocaleString('en-US')} record(s) in this set.`
+      : count > 0
+        ? `Showing ${count} summary record(s) starting at ${offset}. A full page can mean more are available.`
+        : '',
     batches.length > 1 ? `Fetched in ${batches.length} batches of up to ${BATCH_SIZE} UIDs.` : '',
     '',
     allRecords.length > 0
       ? allRecords.map(renderRecordMarkdown).join('\n\n')
       : `No summaries found for these UIDs in \`${db}\`. Check the UIDs, or confirm the database with \`eutils_einfo\`.`,
     '',
-    page.has_more
-      ? `Next: call again with retstart=${page.next_offset} to see more.`
+    hasMore
+      ? `Next: call again with retstart=${nextOffset} to see more.`
       : 'Next: call `eutils_efetch` with the UIDs you want in full.',
   ]
     .filter((line) => line !== '')
@@ -225,18 +233,19 @@ async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput
   const rettype = defaultRettype(db, input.rettype);
   const retmode = input.retmode ?? 'text';
   const retstart = input.retstart ?? 0;
+  const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
+  const singleRecord = source.id !== undefined ? source.count === 1 : pageSize === 1;
 
   const batches = source.id !== undefined ? chunk(source.id.split(','), BATCH_SIZE) : [null];
 
   const parts: string[] = [];
-  let total = source.count ?? 0;
 
   for (const batch of batches) {
     const params: Record<string, unknown> = { rettype, retmode };
     if (batch === null) {
       applySource(params, source);
       params['retstart'] = retstart;
-      params['retmax'] = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
+      params['retmax'] = pageSize;
     } else {
       params['db'] = db;
       params['id'] = batch.join(',');
@@ -254,11 +263,10 @@ async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput
     }
 
     if (body.length > 0) parts.push(body);
-    if (batches.length === 1) total = source.count ?? NaN;
   }
 
   const body = parts.join('\n\n');
-  const recordCount = Number.isNaN(total) ? undefined : total;
+  const recordCount = source.id !== undefined ? source.count : undefined;
 
   const structured = {
     database: db,
@@ -286,7 +294,7 @@ async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput
     // A single record larger than the limit cannot be paged with retstart,
     // which moves between records, not within one. Keep head and tail so the
     // abstract and conclusions survive, and say so instead of promising paging.
-    ...(recordCount === 1
+    ...(singleRecord
       ? {
           truncate: {
             strategy: 'head-tail' as const,

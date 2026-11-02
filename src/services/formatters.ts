@@ -107,19 +107,122 @@ export interface RespondInput {
   truncate?: TruncateOptions;
 }
 
+/** Notice added when the structured payload itself had to be reduced. */
+const STRUCTURED_TRUNCATION_NOTICE =
+  'The structured result was reduced to fit the response budget. Use retstart, a smaller retmax, or a narrower query to see more.';
+
+type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]: JsonLike };
+
+function isRecord(value: JsonLike): value is { [key: string]: JsonLike } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function measure(value: JsonLike): number {
+  return JSON.stringify(value, null, 2).length;
+}
+
+function truncatePlain(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const tail = Math.min(2000, Math.floor(limit / 2));
+  const head = limit - tail;
+  return (
+    text.slice(0, head) +
+    '\n\n[... ' +
+    (text.length - limit) +
+    ' characters omitted ...]\n\n' +
+    text.slice(text.length - tail)
+  );
+}
+
+function walkStrings(value: JsonLike, limit: number): void {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const item = value[index];
+      if (typeof item === 'string') value[index] = truncatePlain(item, limit);
+      else if (item !== undefined) walkStrings(item, limit);
+    }
+    return;
+  }
+  if (!isRecord(value)) return;
+  for (const key of Object.keys(value)) {
+    const item = value[key];
+    if (typeof item === 'string') value[key] = truncatePlain(item, limit);
+    else if (item !== undefined) walkStrings(item, limit);
+  }
+}
+
+function shrinkLargestArray(value: JsonLike): boolean {
+  let largest: JsonLike[] | undefined;
+  const visit = (node: JsonLike): void => {
+    if (Array.isArray(node)) {
+      if (largest === undefined || JSON.stringify(node).length > JSON.stringify(largest).length) {
+        largest = node;
+      }
+      for (const item of node) visit(item);
+      return;
+    }
+    if (isRecord(node)) {
+      for (const item of Object.values(node)) visit(item);
+    }
+  };
+  visit(value);
+  if (largest === undefined || largest.length === 0) return false;
+  largest.length = Math.ceil(largest.length / 2);
+  return true;
+}
+
+function budgetStructured(
+  value: unknown,
+  maxChars: number,
+): { value: Record<string, unknown>; truncated: boolean } {
+  const cloned = JSON.parse(JSON.stringify(value)) as JsonLike;
+  if (measure(cloned) <= maxChars) return { value: cloned as Record<string, unknown>, truncated: false };
+
+  walkStrings(cloned, Math.max(2000, Math.floor(maxChars / 2)));
+  for (let step = 0; step < 200 && measure(cloned) > maxChars; step += 1) {
+    if (!shrinkLargestArray(cloned)) break;
+  }
+  for (const threshold of [4000, 2000, 1000, 500, 250, 100, 50]) {
+    if (measure(cloned) <= maxChars) break;
+    walkStrings(cloned, threshold);
+  }
+
+  if (measure(cloned) > maxChars) {
+    return {
+      value: { truncated: true, truncation_message: STRUCTURED_TRUNCATION_NOTICE },
+      truncated: true,
+    };
+  }
+  return { value: cloned as Record<string, unknown>, truncated: true };
+}
+
 /** Render a successful tool result in the requested format, with truncation applied. */
 export function respond(input: RespondInput): ToolTextResult {
-  const body = input.format === 'json' ? JSON.stringify(input.structured, null, 2) : input.markdown;
-  const { text, truncated, message } = truncateWithNotice(body, CHARACTER_LIMIT, input.truncate ?? {});
+  const budget = budgetStructured(input.structured, CHARACTER_LIMIT - 400);
+  const structured = budget.truncated
+    ? { ...budget.value, truncated: true, truncation_message: STRUCTURED_TRUNCATION_NOTICE }
+    : budget.value;
 
-  const structured = truncated
-    ? { ...input.structured, truncated: true, truncation_message: message }
-    : input.structured;
+  if (input.format === 'json') {
+    let text = JSON.stringify(structured, null, 2);
+    if (text.length > CHARACTER_LIMIT) text = JSON.stringify(structured);
+    return { content: [{ type: 'text', text }], structuredContent: structured };
+  }
 
-  return {
-    content: [{ type: 'text', text }],
-    structuredContent: structured,
-  };
+  const { text, truncated, message } = truncateWithNotice(
+    input.markdown,
+    CHARACTER_LIMIT,
+    input.truncate ?? {},
+  );
+  const reasons: string[] = [];
+  if (budget.truncated) reasons.push(STRUCTURED_TRUNCATION_NOTICE);
+  if (truncated && message !== undefined) reasons.push(message);
+  const merged =
+    reasons.length > 0
+      ? { ...structured, truncated: true, truncation_message: reasons.join(' ') }
+      : structured;
+
+  return { content: [{ type: 'text', text }], structuredContent: merged };
 }
 
 /** Render a failure as an actionable message the model can act on. */

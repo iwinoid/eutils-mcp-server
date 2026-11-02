@@ -107,8 +107,7 @@ async function runElink(client: EutilsClient, input: z.infer<typeof ElinkInput>)
     );
   }
 
-  const params: Record<string, unknown> = { dbfrom, retmode: 'json' };
-  if (dbto) params['db'] = dbto;
+  const params: Record<string, unknown> = { dbfrom, db: dbto ?? dbfrom, retmode: 'json' };
   if (input.cmd) params['cmd'] = input.cmd;
   if (input.linkname) params['linkname'] = input.linkname;
   applySource(params, source, { setDb: false });

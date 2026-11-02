@@ -113,6 +113,12 @@ describe('respond', () => {
     expect(result.structuredContent?.['truncated']).toBe(true);
     expect(result.structuredContent?.['truncation_message']).toBeTruthy();
   });
+
+  it('keeps JSON parseable when the body is truncated', () => {
+    const result = respond({ structured: { text: 'x'.repeat(30000) }, markdown: '', format: 'json' });
+    expect(() => JSON.parse(result.content[0]!.text)).not.toThrow();
+    expect(String(result.structuredContent!['text']).length).toBeLessThanOrEqual(25000);
+  });
 });
 
 describe('errorResult', () => {

@@ -50,6 +50,10 @@ const EgqueryOutput = z.looseObject({
   databases_with_hits: z.number(),
   hits: z.array(z.looseObject({ db: z.string(), count: z.number() })),
   empty_databases: z.array(z.string()),
+  failed_databases: z
+    .array(z.looseObject({ db: z.string(), error: z.string() }))
+    .optional()
+    .describe('Databases whose fallback ESearch failed; these are not no-match results.'),
   degraded: z.boolean().optional().describe('True when the fallback produced this result.'),
   degraded_reason: z.string().optional(),
 });
@@ -169,7 +173,8 @@ async function runEgquery(
 ): Promise<ToolTextResult> {
   const term = requireTerm(input.term);
 
-  let entries: EgqueryEntry[];
+  let entries: EgqueryEntry[] = [];
+  let failures: { db: string; error: string }[] = [];
   let degradedReason: string | undefined;
   let degradedHint: string | undefined;
 
@@ -177,15 +182,31 @@ async function runEgquery(
     entries = await queryEgquery(client, term);
   } catch (error) {
     // EGQuery answers unauthenticated requests with a 301 to an NCBI-internal
-    // service-mesh host that is not published in public DNS. When that happens
-    // the feature is still useful, so fall back to per-database ESearch counts.
-    // Only a network failure degrades; validation errors propagate.
-    if (!(error instanceof EutilsError) || error.kind !== 'network') throw error;
-    degradedReason = error.message;
+    // service-mesh host that is not published in public DNS. Timeouts and empty
+    // bodies are equally unusable, so they degrade too. Validation and rate
+    // limit errors propagate: retrying 12 databases would not help.
+    const degradable =
+      error instanceof EutilsError &&
+      (error.kind === 'network' ||
+        error.kind === 'timeout' ||
+        error.kind === 'parse' ||
+        (error.kind === 'upstream' && /HTTP 5\d\d/.test(error.message)));
+    if (!degradable) throw error;
+    degradedReason = (error as EutilsError).message;
     degradedHint = client.hasApiKey
-      ? 'EGQuery still redirected with a valid API key, so this is confirmed as an NCBI-side problem, not a credentials one.'
-      : 'EGQuery redirected before any credential check, so an API key would not help; this is an NCBI-side problem.';
-    entries = await egqueryFallback(client, term);
+      ? 'EGQuery still failed with a valid API key, so this is confirmed as an NCBI-side problem, not a credentials one.'
+      : 'EGQuery failed before any credential check, so an API key would not help; this is an NCBI-side problem.';
+    const fallback = await egqueryFallback(client, term);
+    entries = fallback.entries;
+    failures = fallback.failures;
+    if (entries.length === 0) {
+      throw new EutilsError(
+        'upstream',
+        'EGQuery fallback failed for every database: ' +
+          failures.map((failure) => failure.db + ' (' + failure.error + ')').join('; '),
+        'NCBI is unreachable from this host. Retry later; do not treat this as a no-match result.',
+      );
+    }
   }
 
   const hits = entries.filter((e) => e.count > 0).sort((a, b) => b.count - a.count);
@@ -197,6 +218,7 @@ async function runEgquery(
     databases_with_hits: hits.length,
     hits,
     empty_databases: empty.map((e) => e.db),
+    ...(failures.length > 0 ? { failed_databases: failures } : {}),
     ...(degradedReason
       ? {
           degraded: true,
@@ -215,7 +237,8 @@ async function runEgquery(
       ? [
           '> **Degraded result.** NCBI EGQuery is unreachable from the public internet:',
           `> ${degradedReason}`,
-          `> Counts below come from ESearch over ${entries.length} commonly used databases, not all 38.`,
+          `> Counts below come from ESearch over ${entries.length} commonly used databases, not all 38.` +
+            (failures.length > 0 ? ` ${failures.length} database(s) failed.` : ''),
           `> ${degradedHint}`,
         ].join('\n')
       : `Searched ${entries.length} databases. ${hits.length} have matches.`,
@@ -227,6 +250,9 @@ async function runEgquery(
       .join('\n'),
     '',
     `Databases with no matches: ${empty.length > 0 ? empty.map((e) => e.db).join(', ') : 'none'}`,
+    failures.length > 0
+      ? `Failed databases: ${failures.map((failure) => failure.db + ' (' + failure.error + ')').join('; ')}`
+      : '',
     '',
     hits.length > 0
       ? `Next: run \`eutils_esearch\` with db="${hits[0]!.db}" to retrieve UIDs.`
@@ -249,7 +275,15 @@ async function queryEgquery(client: EutilsClient, term: string): Promise<Egquery
     );
   }
 
-  return parseEgquery(parsed);
+  const entries = parseEgquery(parsed);
+  if (entries.length === 0) {
+    throw new EutilsError(
+      'parse',
+      'EGQuery returned a valid XML body with no database results.',
+      'Retry. If it persists, NCBI may be returning an empty result set.',
+    );
+  }
+  return entries;
 }
 
 /**
@@ -273,9 +307,18 @@ const EGQUERY_FALLBACK_DATABASES = [
   'gds',
 ] as const;
 
+export interface EgqueryFailure {
+  db: string;
+  error: string;
+}
+
 /** Count matches per database with ESearch, as a stand-in for EGQuery. */
-async function egqueryFallback(client: EutilsClient, term: string): Promise<EgqueryEntry[]> {
+async function egqueryFallback(
+  client: EutilsClient,
+  term: string,
+): Promise<{ entries: EgqueryEntry[]; failures: EgqueryFailure[] }> {
   const entries: EgqueryEntry[] = [];
+  const failures: EgqueryFailure[] = [];
 
   for (const db of EGQUERY_FALLBACK_DATABASES) {
     try {
@@ -286,16 +329,11 @@ async function egqueryFallback(client: EutilsClient, term: string): Promise<Egqu
       const root = requireSection<Record<string, unknown>>(res.json, 'esearchresult', 'ESearch');
       entries.push({ db, menu: '', count: Number(textOf(root['count'])) || 0, status: 'Ok' });
     } catch (error) {
-      entries.push({
-        db,
-        menu: '',
-        count: 0,
-        status: error instanceof Error ? `Error: ${error.message}` : 'Error',
-      });
+      failures.push({ db, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
-  return entries;
+  return { entries, failures };
 }
 
 async function runEspell(client: EutilsClient, input: z.infer<typeof EspellInput>): Promise<ToolTextResult> {
