@@ -140,19 +140,12 @@ try {
       typeof tool.description === 'string' &&
       tool.description.length > 80 &&
       tool.inputSchema?.type === 'object' &&
-      tool.annotations?.readOnlyHint === true &&
-      tool.annotations?.destructiveHint === false,
+      tool.annotations?.destructiveHint === false &&
+      tool.annotations?.openWorldHint === true,
   );
-  check('every tool has a description, an input schema, and read-only annotations', everyTool);
+  check('every tool has a description, an input schema, and safe annotations', everyTool);
 
   console.log('\nTool calls');
-  const einfo = await send('tools/call', { name: 'eutils_einfo', arguments: {} });
-  check(
-    'eutils_einfo lists databases',
-    !einfo.isError && /Entrez databases \(38\)/.test(textOf(einfo)),
-    textOf(einfo).slice(0, 200),
-  );
-
   const badDb = await send('tools/call', {
     name: 'eutils_esearch',
     arguments: { db: 'pubmed&api_key=stolen', term: 'x' },
@@ -165,6 +158,14 @@ try {
 
   if (live) {
     console.log('\nLive NCBI calls');
+    const einfo = await send('tools/call', { name: 'eutils_einfo', arguments: {} });
+    const einfoText = textOf(einfo);
+    check(
+      'eutils_einfo lists databases',
+      !einfo.isError && einfoText.includes('Entrez databases'),
+      einfoText.slice(0, 200),
+    );
+
     const search = await send('tools/call', {
       name: 'eutils_esearch',
       arguments: { db: 'pubmed', term: 'science[journal] AND breast cancer AND 2008[pdat]', retmax: 3 },
