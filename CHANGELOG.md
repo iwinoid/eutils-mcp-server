@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 - 2026-11-02
+
+### Added
+
+- eutils_esearch accepts field, idtype=acc, and rettype=count. Count mode
+  returns the total without a UID page, does not require a History handle, and
+  reports rettype in the structured result.
+- eutils_elink accepts datetype, reldate, mindate, and maxdate for PubMed
+  neighbor and neighbor_history links. mindate and maxdate must be supplied
+  together; reldate cannot be combined with a date range.
+- README, README.zh, and the tool descriptions document the new parameters and
+  their command-specific limits.
+
 ## 0.2.0 - 2026-11-02
 
 ### Fixed

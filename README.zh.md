@@ -275,25 +275,28 @@ EFetch 必须指定记录格式，而手册给每个数据库的默认值不同�
 
 `linkname` 只对 `neighbor` 和 `neighbor_history` 有效。`term` 只对 `neighbor`、
 `neighbor_score`、`neighbor_history` 有效，且要求 `db` 等于 `dbfrom`。`idtype` 只接受
-`acc`。`ncheck` 接受 `db=dbfrom` 做一致性检查，但仍不发送 `db`。
+`acc`。`ncheck` 接受 `db=dbfrom` 做一致性检查，但仍不发送 `db`。日期过滤
+（`datetype`、`reldate`、`mindate`、`maxdate`）只在 `neighbor` 或
+`neighbor_history` 且 `dbfrom="pubmed"` 时生效；`mindate` 与 `maxdate` 必须成对，
+`reldate` 不能和日期范围同时使用。
 
 省略 `db` 时，三个 `neighbor` 命令会发送 `db=dbfrom`，返回源库内部的邻居。手册把
 省略的 `db` 当成 `pubmed`；本服务选择工具说明承诺的同库语义。`acheck` 则不发 `db`，
 列出全部可用链接，因为它的 `db` 只是过滤条件。`ncheck`、`lcheck`、`llinks`、
 `prlinks` 从不发送 `db`。
 
-### 0.2.0 补齐的参数
+### 补充的参数
 
 工具补齐了流水线会用到的手册可选参数：
 
-| 工具                     | 参数                                                                                                                                                |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eutils_esearch`         | `history`（复用 WebEnv 和 query key）、`reldate`（最近若干天，需同时给 `datetype`）；sort 示例改为 `pub_date`、`Author`、`JournalName`、`relevance` |
-| `eutils_epost`           | `web_env`（把 UID 列表追加到已有 Web 环境）                                                                                                         |
-| `eutils_efetch`          | `strand`、`seq_start`、`seq_stop`、`complexity`；`retmode=asn.1` 仅限文本 ASN.1（序列库会拒绝）                                                     |
-| `eutils_einfo`           | `version`（`"2.0"` 为每个字段增加 `is_truncatable`、`is_rangeable`）                                                                                |
-| `eutils_elink`           | `term`、`holding`、`idtype`，以及上表的命令                                                                                                         |
-| `eutils_link_then_fetch` | `retmode`                                                                                                                                           |
+| 工具                     | 参数                                                                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eutils_esearch`         | `history`（复用 WebEnv 和 query key）、`reldate`（最近若干天，需同时给 `datetype`）、`field`、`idtype=acc`、`rettype=count`；sort 示例改为 `pub_date`、`Author`、`JournalName`、`relevance` |
+| `eutils_epost`           | `web_env`（把 UID 列表追加到已有 Web 环境）                                                                                                                                                 |
+| `eutils_efetch`          | `strand`、`seq_start`、`seq_stop`、`complexity`；`retmode=asn.1` 仅限文本 ASN.1（序列库会拒绝）                                                                                             |
+| `eutils_einfo`           | `version`（`"2.0"` 为每个字段增加 `is_truncatable`、`is_rangeable`）                                                                                                                        |
+| `eutils_elink`           | `term`、`holding`、`idtype`、`datetype`、`reldate`、`mindate`、`maxdate`，以及上表的命令                                                                                                    |
+| `eutils_link_then_fetch` | `retmode`                                                                                                                                                                                   |
 
 ### 与手册的有意差异
 

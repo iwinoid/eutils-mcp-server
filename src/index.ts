@@ -7,7 +7,7 @@ function warn(message: string): void {
   process.stderr.write(`[eutils-mcp-server] ${message}\n`);
 }
 function readPackageVersion(): string {
-  return process.env['npm_package_version'] ?? '0.2.0';
+  return process.env['npm_package_version'] ?? '0.3.0';
 }
 if (!process.env['NCBI_EMAIL']) {
   warn(

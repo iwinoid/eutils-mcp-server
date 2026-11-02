@@ -314,7 +314,9 @@ defaults. When no format parameter was sent, the response reports `rettype` and
 `linkname` is valid only for `neighbor` and `neighbor_history`. `term` is valid only
 for `neighbor`, `neighbor_score`, and `neighbor_history`, and only when `db` equals
 `dbfrom`. `idtype` accepts only `acc`. `ncheck` accepts `db=dbfrom` as a consistency
-check but still does not send it.
+check but still does not send it. Date filters (`datetype`, `reldate`, `mindate`,
+`maxdate`) apply only with `neighbor` or `neighbor_history` and `dbfrom="pubmed"`;
+`mindate` and `maxdate` go together, and `reldate` cannot be combined with a range.
 
 When you omit `db`, the server sends `db=dbfrom` for the three `neighbor` commands,
 so you get neighbors inside the source database. The manual assigns `pubmed` to an
@@ -322,19 +324,19 @@ omitted `db`; this server chooses the same-database meaning that the tool descri
 promises. `acheck` instead sends no `db` and lists every available link, because its
 `db` is only a filter. `ncheck`, `lcheck`, `llinks`, and `prlinks` never send `db`.
 
-### Coverage added in 0.2.0
+### Added parameters
 
 The tools expose the manual's optional parameters for the cases a retrieval pipeline
 needs:
 
-| Tool                     | Parameters                                                                                                                                                   |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `eutils_esearch`         | `history` (reuse a WebEnv and query key), `reldate` (days back, requires `datetype`); sort examples use `pub_date`, `Author`, `JournalName`, and `relevance` |
-| `eutils_epost`           | `web_env` (append the UID list to an existing Web environment)                                                                                               |
-| `eutils_efetch`          | `strand`, `seq_start`, `seq_stop`, `complexity`; `retmode=asn.1` for text ASN.1 (sequence databases reject it)                                               |
-| `eutils_einfo`           | `version` (`"2.0"` adds `is_truncatable` and `is_rangeable` per field)                                                                                       |
-| `eutils_elink`           | `term`, `holding`, `idtype`, and the commands in the table above                                                                                             |
-| `eutils_link_then_fetch` | `retmode`                                                                                                                                                    |
+| Tool                     | Parameters                                                                                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eutils_esearch`         | `history` (reuse a WebEnv and query key), `reldate` (days back, requires `datetype`), `field`, `idtype=acc`, `rettype=count`; sort examples use `pub_date`, `Author`, `JournalName`, and `relevance` |
+| `eutils_epost`           | `web_env` (append the UID list to an existing Web environment)                                                                                                                                       |
+| `eutils_efetch`          | `strand`, `seq_start`, `seq_stop`, `complexity`; `retmode=asn.1` for text ASN.1 (sequence databases reject it)                                                                                       |
+| `eutils_einfo`           | `version` (`"2.0"` adds `is_truncatable` and `is_rangeable` per field)                                                                                                                               |
+| `eutils_elink`           | `term`, `holding`, `idtype`, `datetype`, `reldate`, `mindate`, `maxdate`, and the commands in the table above                                                                                        |
+| `eutils_link_then_fetch` | `retmode`                                                                                                                                                                                            |
 
 ### Deliberate differences from the manual
 
