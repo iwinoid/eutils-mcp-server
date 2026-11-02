@@ -1,9 +1,34 @@
 {
   "name": "eutils-mcp-server",
-  "version": "0.1.0",
-  "description": "MCP server exposing the nine NCBI Entrez E-utilities as eleven read-only tools",
+  "version": "0.1.1",
+  "description": "MCP server exposing the nine NCBI Entrez E-utilities as eleven tools",
+  "license": "MIT",
+  "author": "iwinoid",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iwinoid/eutils-mcp-server.git"
+  },
+  "homepage": "https://github.com/iwinoid/eutils-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/iwinoid/eutils-mcp-server/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ncbi",
+    "entrez",
+    "e-utilities",
+    "pubmed"
+  ],
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "eutils-mcp-server": "dist/index.js"
   },
@@ -30,7 +55,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:coverage": "vitest run --coverage",
-    "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run build"
+    "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run build",
+    "prepublishOnly": "npm run ci"
   },
   "engines": {
     "node": ">=22.9.0"
