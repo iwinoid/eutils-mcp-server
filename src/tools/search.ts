@@ -88,6 +88,7 @@ const EPostOutput = z.looseObject({
 async function runESearch(
   client: EUtilsClient,
   input: z.infer<typeof ESearchInput>,
+  signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
@@ -102,7 +103,7 @@ async function runESearch(
   if (input.maxdate) params['maxdate'] = input.maxdate;
   if (useHistory) params['usehistory'] = 'y';
 
-  const res = await client.request({ endpoint: 'esearch.fcgi', params });
+  const res = await client.request({ endpoint: 'esearch.fcgi', params, signal });
   const { total, uids, queryTranslation, translations, history } = parseESearch(res.json, db, useHistory);
 
   const page = pageInfo(total, uids.length, retstart);
@@ -161,7 +162,11 @@ async function runESearch(
   return respond({ structured, markdown, format: input.response_format });
 }
 
-async function runEPost(client: EUtilsClient, input: z.infer<typeof EPostInput>): Promise<ToolTextResult> {
+async function runEPost(
+  client: EUtilsClient,
+  input: z.infer<typeof EPostInput>,
+  signal?: AbortSignal,
+): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const uids = parseUids(input.uids);
 
@@ -170,6 +175,7 @@ async function runEPost(client: EUtilsClient, input: z.infer<typeof EPostInput>)
   const res = await client.request({
     endpoint: 'epost.fcgi',
     params: { db, id: uids.join(',') },
+    signal,
   });
 
   const parsed = parseXml(res.text);
@@ -252,9 +258,9 @@ Error Handling:
       outputSchema: ESearchOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runESearch(client, input);
+        return await runESearch(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }
@@ -290,9 +296,9 @@ Error Handling:
       outputSchema: EPostOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runEPost(client, input);
+        return await runEPost(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }

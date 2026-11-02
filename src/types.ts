@@ -37,6 +37,7 @@ export type EUtilsErrorKind =
   | 'timeout'
   | 'network'
   | 'parse'
+  | 'cancelled'
   | 'history_expired';
 
 /**

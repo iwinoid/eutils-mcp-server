@@ -86,10 +86,12 @@ async function searchToHistory(
   client: EUtilsClient,
   db: string,
   term: string,
+  signal?: AbortSignal,
 ): Promise<{ count: number; history: HistoryRef }> {
   const res = await client.request({
     endpoint: 'esearch.fcgi',
     params: { db, term, retmax: 0, usehistory: 'y', retmode: 'json' },
+    signal,
   });
 
   const { total: count, history } = parseESearch(res.json, db, true);
@@ -106,8 +108,17 @@ async function searchToHistory(
 }
 
 /** Upload explicit UIDs to the History server. */
-async function postToHistory(client: EUtilsClient, db: string, uids: string[]): Promise<HistoryRef> {
-  const res = await client.request({ endpoint: 'epost.fcgi', params: { db, id: uids.join(',') } });
+async function postToHistory(
+  client: EUtilsClient,
+  db: string,
+  uids: string[],
+  signal?: AbortSignal,
+): Promise<HistoryRef> {
+  const res = await client.request({
+    endpoint: 'epost.fcgi',
+    params: { db, id: uids.join(',') },
+    signal,
+  });
 
   const parsed = parseXml(res.text);
   const history = parsed === undefined ? undefined : parseEPost(parsed, db);
@@ -131,6 +142,7 @@ async function fetchFromHistory(
   rettype: string,
   retmode: string,
   retmax: number,
+  signal?: AbortSignal,
 ): Promise<string> {
   const res = await client.request({
     endpoint: 'efetch.fcgi',
@@ -143,6 +155,7 @@ async function fetchFromHistory(
       retstart: 0,
       retmax,
     },
+    signal,
   });
 
   const body = res.text.trim();
@@ -160,6 +173,7 @@ async function fetchFromHistory(
 async function runSearchThenFetch(
   client: EUtilsClient,
   input: z.infer<typeof SearchThenFetchInput>,
+  signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
@@ -167,7 +181,7 @@ async function runSearchThenFetch(
   const rettype = defaultRetType(db, input.rettype);
   const retmode = input.retmode ?? 'text';
 
-  const { count, history } = await searchToHistory(client, db, term);
+  const { count, history } = await searchToHistory(client, db, term, signal);
 
   if (count === 0) {
     const structured = { database: db, term, total: 0, retrieved: 0, history, text: '' };
@@ -181,7 +195,7 @@ async function runSearchThenFetch(
     return respond({ structured, markdown, format: input.response_format });
   }
 
-  const body = await fetchFromHistory(client, db, history, rettype, retmode, retmax);
+  const body = await fetchFromHistory(client, db, history, rettype, retmode, retmax, signal);
 
   const structured = {
     database: db,
@@ -223,6 +237,7 @@ function countFastaRecords(body: string): number {
 async function runLinkThenFetch(
   client: EUtilsClient,
   input: z.infer<typeof LinkThenFetchInput>,
+  signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const dbfrom = validateDatabase(input.dbfrom);
   const dbto = validateDatabase(input.db);
@@ -242,8 +257,8 @@ async function runLinkThenFetch(
 
   const sourceUids = hasUids ? parseUids(input.uids!) : undefined;
   const source = hasTerm
-    ? await searchToHistory(client, dbfrom, requireTerm(input.term))
-    : { count: sourceUids!.length, history: await postToHistory(client, dbfrom, sourceUids!) };
+    ? await searchToHistory(client, dbfrom, requireTerm(input.term), signal)
+    : { count: sourceUids!.length, history: await postToHistory(client, dbfrom, sourceUids!, signal) };
 
   const linkParams: QueryParams = {
     dbfrom,
@@ -255,7 +270,7 @@ async function runLinkThenFetch(
   };
   if (input.linkname) linkParams['linkname'] = input.linkname;
 
-  const linkRes = await client.request({ endpoint: 'elink.fcgi', params: linkParams });
+  const linkRes = await client.request({ endpoint: 'elink.fcgi', params: linkParams, signal });
   const { groups, webEnv, histories } = parseELink(linkRes.json);
 
   const candidates = groups.filter((group) => group.dbto === dbto && group.query_key !== undefined);
@@ -287,7 +302,7 @@ async function runLinkThenFetch(
   }
 
   const targetHistory: HistoryRef = target;
-  const body = await fetchFromHistory(client, dbto, targetHistory, rettype, 'text', retmax);
+  const body = await fetchFromHistory(client, dbto, targetHistory, rettype, 'text', retmax, signal);
   const retrieved = rettype === 'fasta' ? countFastaRecords(body) : undefined;
 
   const structured = {
@@ -367,9 +382,9 @@ Error Handling:
       outputSchema: SearchThenFetchOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runSearchThenFetch(client, input);
+        return await runSearchThenFetch(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }
@@ -412,9 +427,9 @@ Error Handling:
       outputSchema: LinkThenFetchOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runLinkThenFetch(client, input);
+        return await runLinkThenFetch(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }

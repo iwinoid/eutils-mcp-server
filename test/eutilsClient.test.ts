@@ -301,6 +301,50 @@ describe('EUtilsClient capabilities', () => {
     expect(keyed.hasApiKey).toBe(true);
   });
 
+  it('rejects an already-cancelled request without calling fetch', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { client, calls } = makeClient(async () => jsonResponse({ ok: true }));
+    await expect(
+      client.request({
+        endpoint: 'esearch.fcgi',
+        params: { db: 'pubmed', term: 'x' },
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ kind: 'cancelled' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('cancels an in-flight request without retrying', async () => {
+    const controller = new AbortController();
+    const clock = new FakeClock();
+    let calls = 0;
+    const client = new EUtilsClient({
+      clock,
+      limiter: new TokenBucket(1000, 1000, clock),
+      maxRetries: 3,
+      fetchImpl: (_url, init) => {
+        calls += 1;
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const error = new Error('aborted');
+            error.name = 'AbortError';
+            reject(error);
+          });
+        });
+      },
+    });
+    const pending = client.request({
+      endpoint: 'esearch.fcgi',
+      params: { db: 'pubmed', term: 'x' },
+      signal: controller.signal,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ kind: 'cancelled' });
+    expect(calls).toBe(1);
+  });
+
   it('rate limits every attempt, including retries', async () => {
     const clock = new FakeClock();
     const calls: number[] = [];

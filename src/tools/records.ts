@@ -146,6 +146,7 @@ function renderRecordMarkdown(record: CompactRecord, index: number): string {
 async function runESummary(
   client: EUtilsClient,
   input: z.infer<typeof ESummaryInput>,
+  signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const source = resolveDbAndSource(input);
   const db = source.db;
@@ -168,7 +169,7 @@ async function runESummary(
       params['id'] = batch.join(',');
     }
 
-    const res = await client.request({ endpoint: 'esummary.fcgi', params });
+    const res = await client.request({ endpoint: 'esummary.fcgi', params, signal });
     const { records } = parseESummary(res.json, db);
     allRecords.push(...records);
   }
@@ -227,7 +228,11 @@ export function defaultRetType(db: string, requested: string | undefined): strin
   );
 }
 
-async function runEFetch(client: EUtilsClient, input: z.infer<typeof EFetchInput>): Promise<ToolTextResult> {
+async function runEFetch(
+  client: EUtilsClient,
+  input: z.infer<typeof EFetchInput>,
+  signal?: AbortSignal,
+): Promise<ToolTextResult> {
   const source = resolveDbAndSource(input);
   const db = source.db;
   const rettype = defaultRetType(db, input.rettype);
@@ -251,7 +256,7 @@ async function runEFetch(client: EUtilsClient, input: z.infer<typeof EFetchInput
       params['id'] = batch.join(',');
     }
 
-    const res = await client.request({ endpoint: 'efetch.fcgi', params });
+    const res = await client.request({ endpoint: 'efetch.fcgi', params, signal });
     const body = res.text.trim();
 
     if (/^error[:\s]/i.test(body)) {
@@ -349,9 +354,9 @@ Error Handling:
       outputSchema: ESummaryOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runESummary(client, input);
+        return await runESummary(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }
@@ -398,9 +403,9 @@ Error Handling:
       outputSchema: EFetchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runEFetch(client, input);
+        return await runEFetch(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }

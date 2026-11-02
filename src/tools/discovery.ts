@@ -95,11 +95,15 @@ function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
   }));
 }
 
-async function runEInfo(client: EUtilsClient, input: z.infer<typeof EInfoInput>): Promise<ToolTextResult> {
+async function runEInfo(
+  client: EUtilsClient,
+  input: z.infer<typeof EInfoInput>,
+  signal?: AbortSignal,
+): Promise<ToolTextResult> {
   const params: QueryParams = { retmode: 'json' };
   if (input.db) params['db'] = validateDatabase(input.db);
 
-  const res = await client.request({ endpoint: 'einfo.fcgi', params });
+  const res = await client.request({ endpoint: 'einfo.fcgi', params, signal });
   const root = requireSection<Record<string, unknown>>(res.json, 'einforesult', 'EInfo');
 
   if (!input.db) {
@@ -170,6 +174,7 @@ async function runEInfo(client: EUtilsClient, input: z.infer<typeof EInfoInput>)
 async function runEGQuery(
   client: EUtilsClient,
   input: z.infer<typeof EGQueryInput>,
+  signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const term = requireTerm(input.term);
 
@@ -179,7 +184,7 @@ async function runEGQuery(
   let degradedHint: string | undefined;
 
   try {
-    entries = await queryEGQuery(client, term);
+    entries = await queryEGQuery(client, term, signal);
   } catch (error) {
     // EGQuery answers unauthenticated requests with a 301 to an NCBI-internal
     // service-mesh host that is not published in public DNS. Timeouts and empty
@@ -196,7 +201,7 @@ async function runEGQuery(
     degradedHint = client.hasApiKey
       ? 'EGQuery still failed with a valid API key, so this is confirmed as an NCBI-side problem, not a credentials one.'
       : 'EGQuery failed before any credential check, so an API key would not help; this is an NCBI-side problem.';
-    const fallback = await egqueryFallback(client, term);
+    const fallback = await egqueryFallback(client, term, signal);
     entries = fallback.entries;
     failures = fallback.failures;
     if (entries.length === 0) {
@@ -263,8 +268,12 @@ async function runEGQuery(
 }
 
 /** Ask EGQuery directly. Returns one entry per Entrez database. */
-async function queryEGQuery(client: EUtilsClient, term: string): Promise<EGQueryEntry[]> {
-  const res = await client.request({ endpoint: 'egquery.fcgi', params: { term } });
+async function queryEGQuery(
+  client: EUtilsClient,
+  term: string,
+  signal?: AbortSignal,
+): Promise<EGQueryEntry[]> {
+  const res = await client.request({ endpoint: 'egquery.fcgi', params: { term }, signal });
 
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
@@ -316,15 +325,22 @@ export interface EGQueryFailure {
 async function egqueryFallback(
   client: EUtilsClient,
   term: string,
+  signal?: AbortSignal,
 ): Promise<{ entries: EGQueryEntry[]; failures: EGQueryFailure[] }> {
   const entries: EGQueryEntry[] = [];
   const failures: EGQueryFailure[] = [];
 
   for (const db of EGQUERY_FALLBACK_DATABASES) {
+    if (signal?.aborted) {
+      throw new EUtilsError('cancelled', 'The EGQuery fallback was cancelled.', 'No action is needed.');
+    }
     try {
       const res = await client.request({
         endpoint: 'esearch.fcgi',
         params: { db, term, retmax: 0, retmode: 'json' },
+        signal,
+        timeoutMs: 5_000,
+        maxRetries: 0,
       });
       const root = requireSection<Record<string, unknown>>(res.json, 'esearchresult', 'ESearch');
       entries.push({ db, menu: '', count: Number(textOf(root['count'])) || 0, status: 'Ok' });
@@ -336,11 +352,15 @@ async function egqueryFallback(
   return { entries, failures };
 }
 
-async function runESpell(client: EUtilsClient, input: z.infer<typeof ESpellInput>): Promise<ToolTextResult> {
+async function runESpell(
+  client: EUtilsClient,
+  input: z.infer<typeof ESpellInput>,
+  signal?: AbortSignal,
+): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
 
-  const res = await client.request({ endpoint: 'espell.fcgi', params: { db, term } });
+  const res = await client.request({ endpoint: 'espell.fcgi', params: { db, term }, signal });
 
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
@@ -408,9 +428,9 @@ Error Handling:
       outputSchema: EInfoOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runEInfo(client, input);
+        return await runEInfo(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }
@@ -450,9 +470,9 @@ Error Handling:
       outputSchema: EGQueryOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runEGQuery(client, input);
+        return await runEGQuery(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }
@@ -484,9 +504,9 @@ Error Handling:
       outputSchema: ESpellOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runESpell(client, input);
+        return await runESpell(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }

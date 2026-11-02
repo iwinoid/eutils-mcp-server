@@ -34,6 +34,12 @@ export interface EUtilsRequest {
   method?: 'GET' | 'POST' | undefined;
   /** Value for the `Accept` header. */
   accept?: string | undefined;
+  /** Cancels the request when the MCP client cancels the tool call. */
+  signal?: AbortSignal | undefined;
+  /** Per-request ceiling; defaults to the client-wide timeout. */
+  timeoutMs?: number | undefined;
+  /** Per-request retry count; defaults to the client-wide value. */
+  maxRetries?: number | undefined;
 }
 
 export interface EUtilsResponse {
@@ -108,8 +114,34 @@ async function readCapped(response: Response, maxBytes: number): Promise<string>
   return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
 }
 
-function sleepWithClock(clock: Clock, ms: number): Promise<void> {
-  return clock.sleep(ms);
+function cancelledError(): EUtilsError {
+  return new EUtilsError(
+    'cancelled',
+    'The request was cancelled by the client.',
+    'No action is needed; the host cancelled this tool call.',
+  );
+}
+
+function attemptSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+function sleepFor(clock: Clock, ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return clock.sleep(ms);
+  if (signal.aborted) return Promise.reject(cancelledError());
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      reject(cancelledError());
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 function backoffMs(attempt: number): number {
@@ -179,7 +211,11 @@ export class EUtilsClient {
   }
 
   /** Follow redirects manually, validating every hop's host. */
-  private async fetchFollowingRedirects(initialUrl: string, init: RequestInit): Promise<Response> {
+  private async fetchFollowingRedirects(
+    initialUrl: string,
+    init: RequestInit,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     let url = initialUrl;
     let response = await this.fetchImpl(url, { ...init, redirect: 'manual' });
 
@@ -200,7 +236,8 @@ export class EUtilsClient {
       url = next;
       try {
         response = await this.fetchImpl(url, { ...init, redirect: 'manual' });
-      } catch {
+      } catch (error) {
+        if (signal?.aborted) throw error;
         // NCBI's EGQuery endpoint currently 301s to an internal
         // service-mesh host that is absent from public DNS. Name it, so the
         // caller can degrade instead of reporting a bare "fetch failed".
@@ -223,13 +260,24 @@ export class EUtilsClient {
   async request(req: EUtilsRequest): Promise<EUtilsResponse> {
     const method = this.chooseMethod(req.endpoint, req.params, req.method);
     const search = this.buildParams(req.params);
-    const url = `${BASE_URL}${req.endpoint}`;
+    const url = BASE_URL + req.endpoint;
     const accept = req.accept ?? 'application/json, text/xml, text/plain, */*';
+    const signal = req.signal;
+    const timeoutMs = req.timeoutMs ?? this.timeoutMs;
+    const maxRetries = req.maxRetries ?? this.maxRetries;
+
+    if (signal?.aborted) throw cancelledError();
 
     let lastError: EUtilsError | undefined;
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      await this.limiter.acquire();
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        await this.limiter.acquire(signal);
+      } catch (error) {
+        if (signal?.aborted) throw cancelledError();
+        throw this.mapThrown(error, signal, timeoutMs);
+      }
+      if (signal?.aborted) throw cancelledError();
 
       const init: RequestInit =
         method === 'POST'
@@ -237,25 +285,25 @@ export class EUtilsClient {
               method: 'POST',
               headers: { 'content-type': 'application/x-www-form-urlencoded', accept },
               body: search.toString(),
-              signal: AbortSignal.timeout(this.timeoutMs),
+              signal: attemptSignal(signal, timeoutMs),
             }
           : {
               method: 'GET',
               headers: { accept },
-              signal: AbortSignal.timeout(this.timeoutMs),
+              signal: attemptSignal(signal, timeoutMs),
             };
 
-      const target = method === 'POST' ? url : `${url}?${search.toString()}`;
+      const target = method === 'POST' ? url : url + '?' + search.toString();
 
       try {
-        const response = await this.fetchFollowingRedirects(target, init);
+        const response = await this.fetchFollowingRedirects(target, init, signal);
         const contentType = response.headers.get('content-type') ?? '';
         const text = await readCapped(response, MAX_RESPONSE_BYTES);
 
         if (RETRYABLE_STATUS.has(response.status)) {
           lastError = this.mapStatus(response.status, text);
-          if (attempt < this.maxRetries) {
-            await sleepWithClock(this.clock, backoffMs(attempt));
+          if (attempt < maxRetries) {
+            await sleepFor(this.clock, backoffMs(attempt), signal);
             continue;
           }
           throw lastError;
@@ -269,7 +317,7 @@ export class EUtilsClient {
           throw new EUtilsError(
             'validation',
             'NCBI rejected the request as too large even over POST.',
-            `Split the UID list into chunks of ${200} or fewer and retry.`,
+            'Split the UID list into chunks of 200 or fewer and retry.',
           );
         }
 
@@ -285,18 +333,20 @@ export class EUtilsClient {
 
         return { status: response.status, contentType, text, ...(json === undefined ? {} : { json }) };
       } catch (error) {
+        if (signal?.aborted) throw cancelledError();
         if (error instanceof EUtilsError) {
-          if (error.kind === 'timeout' && attempt < this.maxRetries) {
+          if (error.kind === 'timeout' && attempt < maxRetries) {
             lastError = error;
-            await sleepWithClock(this.clock, backoffMs(attempt));
+            await sleepFor(this.clock, backoffMs(attempt), signal);
             continue;
           }
           throw error;
         }
-        const mapped = this.mapThrown(error);
+        const mapped = this.mapThrown(error, signal, timeoutMs);
+        if (mapped.kind === 'cancelled') throw mapped;
         lastError = mapped;
-        if (attempt < this.maxRetries) {
-          await sleepWithClock(this.clock, backoffMs(attempt));
+        if (attempt < maxRetries) {
+          await sleepFor(this.clock, backoffMs(attempt), signal);
           continue;
         }
         throw mapped;
@@ -369,12 +419,14 @@ export class EUtilsClient {
     return new EUtilsError('upstream', `NCBI reported: ${clean}`, 'Adjust the request and retry.');
   }
 
-  private mapThrown(error: unknown): EUtilsError {
+  private mapThrown(error: unknown, signal?: AbortSignal, timeoutMs: number = this.timeoutMs): EUtilsError {
+    if (signal?.aborted) return cancelledError();
     if (error instanceof Error) {
-      if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+      if (error.name === 'AbortError') return cancelledError();
+      if (error.name === 'TimeoutError') {
         return new EUtilsError(
           'timeout',
-          `NCBI did not answer within ${this.timeoutMs / 1000} seconds.`,
+          `NCBI did not answer within ${timeoutMs / 1000} seconds.`,
           'Reduce retmax or narrow the query, then retry.',
         );
       }

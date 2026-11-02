@@ -99,7 +99,11 @@ const ECitMatchOutput = z.looseObject({
   ),
 });
 
-async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>): Promise<ToolTextResult> {
+async function runELink(
+  client: EUtilsClient,
+  input: z.infer<typeof ELinkInput>,
+  signal?: AbortSignal,
+): Promise<ToolTextResult> {
   const dbfrom = validateDatabase(input.dbfrom);
   const dbto = input.db ? validateDatabase(input.db) : undefined;
   const source = resolveSource(input, dbfrom);
@@ -117,7 +121,7 @@ async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>)
   if (input.linkname) params['linkname'] = input.linkname;
   applySource(params, source, { setDb: false });
 
-  const res = await client.request({ endpoint: 'elink.fcgi', params });
+  const res = await client.request({ endpoint: 'elink.fcgi', params, signal });
   const { groups, histories } = parseELink(res.json);
 
   const totalLinked = groups.reduce((sum, group) => sum + group.count, 0);
@@ -177,6 +181,7 @@ async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>)
 async function runECitMatch(
   client: EUtilsClient,
   input: z.infer<typeof ECitMatchInput>,
+  signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const cleaned = input.citations
     .map((citation) => citation.trim())
@@ -221,6 +226,7 @@ async function runECitMatch(
     endpoint: 'ecitmatch.cgi',
     params: { db: 'pubmed', retmode: 'xml', bdata },
     method: 'POST',
+    signal,
   });
 
   const records = parseECitMatch(res.text, cleaned);
@@ -292,9 +298,9 @@ Error Handling:
       outputSchema: ELinkOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runELink(client, input);
+        return await runELink(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }
@@ -333,9 +339,9 @@ Error Handling:
       outputSchema: ECitMatchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async (input) => {
+    async (input, ctx) => {
       try {
-        return await runECitMatch(client, input);
+        return await runECitMatch(client, input, ctx.mcpReq.signal);
       } catch (error) {
         return errorResult(error);
       }

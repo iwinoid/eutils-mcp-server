@@ -5,10 +5,11 @@ import { registerAllTools } from '../src/tools/registry.js';
 export interface RecordedRequest {
   endpoint: string;
   params: Record<string, unknown>;
+  signal?: AbortSignal;
 }
 
 export interface ToolHarness {
-  call(name: string, args: Record<string, unknown>): Promise<any>;
+  call(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<any>;
   calls: RecordedRequest[];
   configs: Map<string, any>;
 }
@@ -17,10 +18,10 @@ export function createHarness(
   router: (req: RecordedRequest) => EUtilsResponse | Promise<EUtilsResponse>,
 ): ToolHarness {
   const calls: RecordedRequest[] = [];
-  const handlers = new Map<string, (input: any) => Promise<any>>();
+  const handlers = new Map<string, (input: any, ctx: any) => Promise<any>>();
   const configs = new Map<string, any>();
   const server = {
-    registerTool(name: string, config: any, handler: (input: any) => Promise<any>) {
+    registerTool(name: string, config: any, handler: (input: any, ctx: any) => Promise<any>) {
       handlers.set(name, handler);
       configs.set(name, config);
     },
@@ -28,7 +29,11 @@ export function createHarness(
   const client = {
     hasApiKey: true,
     request: async (req: any) => {
-      const recorded = { endpoint: req.endpoint, params: req.params };
+      const recorded = {
+        endpoint: req.endpoint,
+        params: req.params,
+        signal: req.signal as AbortSignal | undefined,
+      };
       calls.push(recorded);
       return router(recorded);
     },
@@ -37,10 +42,10 @@ export function createHarness(
   return {
     calls,
     configs,
-    async call(name, args) {
+    async call(name, args, signal) {
       const handler = handlers.get(name);
       if (!handler) throw new Error('unknown tool ' + name);
-      return handler(args);
+      return handler(args, { mcpReq: { signal: signal ?? new AbortController().signal } });
     },
   };
 }
