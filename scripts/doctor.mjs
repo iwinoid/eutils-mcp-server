@@ -64,7 +64,7 @@ for (const probe of probes) {
       const location = response.headers.get('location') ?? '';
       detail = `redirects to ${location ? new URL(location).host : '(no location)'}`;
       if (probe.name === 'egquery') {
-        detail += ' — not published in public DNS; see README';
+        detail += ' — not published in public DNS';
       }
     } else if (response.ok) {
       const text = await response.text();

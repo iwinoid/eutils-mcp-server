@@ -1,7 +1,7 @@
 import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', '.npmcache/**', '.mcp-inspector/**', 'coverage/**'],
+    ignores: ['dist/**', 'node_modules/**', '.npmcache/**', '.mcp-inspector/**', 'coverage/**', 'scratch/**'],
   },
   ...tseslint.configs.recommended,
   {
