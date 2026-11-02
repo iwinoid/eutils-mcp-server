@@ -268,7 +268,92 @@ Tools that create an NCBI History set report `readOnlyHint: false` and
 
 Each tool takes one of the nine E-utilities as its subject. The tool name carries the
 E-utilities name after the `eutils_` prefix, so `eutils_esearch` calls `esearch.fcgi`.
-Parameter names follow the API, so the manual applies directly.
+Tool arguments use NCBI's parameter names (`db`, `dbfrom`, `retmax`, `retstart`,
+`usehistory`, `WebEnv`, ...), but the server is not a blind pass-through: it picks
+output formats, validates command-specific parameters, and deliberately differs from
+the manual in a few places. The sections below say where.
+
+### Output formats
+
+EFetch needs a record format, and the manual gives a different default for each
+database. `eutils_efetch` applies these defaults when `rettype` is omitted:
+
+| `db`                               | No `rettype` and no `retmode`        | No `rettype`, `retmode=text`       |
+| ---------------------------------- | ------------------------------------ | ---------------------------------- |
+| `pubmed`                           | abstract / text                      | abstract / text                    |
+| `protein`, `nuccore`, `nucleotide` | FASTA / text                         | FASTA / text                       |
+| `pmc`                              | no format parameters (XML)           | medline / text                     |
+| every other database               | no format parameters (native record) | `retmode=text` only, native record |
+
+An explicit `rettype` is sent unchanged, and `retmode` defaults to `text`. `retmode`
+accepts `text`, `xml`, and `asn.1`. `asn.1` means text ASN.1: gene, homologene, and snp
+return it. The binary ASN.1 form of `protein`, `nuccore`, and `nucleotide` cannot travel
+through a text channel, so the server rejects that combination with an actionable
+error. For sequence records, `strand`, `seq_start`, `seq_stop`, and `complexity` narrow
+or expand the sequence that comes back. The two workflow tools apply the same
+defaults. When no format parameter was sent, the response reports `rettype` and
+`retmode` as `default`.
+
+### ELink commands
+
+`eutils_elink` covers every link command the live API answers: `neighbor`,
+`neighbor_score`, `neighbor_history`, `acheck`, `ncheck`, `lcheck`, `llinks`, and
+`prlinks`. Each command has its own response shape and its own rules.
+
+| `cmd`                | Returns                                     | Parameters                                    |
+| -------------------- | ------------------------------------------- | --------------------------------------------- |
+| `neighbor` (default) | `groups` with linked UIDs                   | `db`, `linkname`, `term` (same database only) |
+| `neighbor_score`     | `groups` with `ids` and aligned `scores`    | `db` (must equal `dbfrom`), `term`            |
+| `neighbor_history`   | `groups` with `query_key`, plus `histories` | `db`, `linkname`, `term` (same database only) |
+| `acheck`             | `available_links`                           | `db` as a filter                              |
+| `ncheck`             | `link_checks`                               | `db` (must equal `dbfrom`; never sent)        |
+| `lcheck`             | `link_checks`                               | none                                          |
+| `llinks`             | `provider_links`                            | `holding`                                     |
+| `prlinks`            | `provider_links`                            | none                                          |
+
+`linkname` is valid only for `neighbor` and `neighbor_history`. `term` is valid only
+for `neighbor`, `neighbor_score`, and `neighbor_history`, and only when `db` equals
+`dbfrom`. `idtype` accepts only `acc`. `ncheck` accepts `db=dbfrom` as a consistency
+check but still does not send it.
+
+When you omit `db`, the server sends `db=dbfrom` for the three `neighbor` commands,
+so you get neighbors inside the source database. The manual assigns `pubmed` to an
+omitted `db`; this server chooses the same-database meaning that the tool description
+promises. `acheck` instead sends no `db` and lists every available link, because its
+`db` is only a filter. `ncheck`, `lcheck`, `llinks`, and `prlinks` never send `db`.
+
+### Coverage added in 0.2.0
+
+The tools expose the manual's optional parameters for the cases a retrieval pipeline
+needs:
+
+| Tool                     | Parameters                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `eutils_esearch`         | `history` (reuse a WebEnv and query key), `reldate` (days back, requires `datetype`); sort examples use `pub_date`, `Author`, `JournalName`, and `relevance` |
+| `eutils_epost`           | `web_env` (append the UID list to an existing Web environment)                                                                                               |
+| `eutils_efetch`          | `strand`, `seq_start`, `seq_stop`, `complexity`; `retmode=asn.1` for text ASN.1 (sequence databases reject it)                                               |
+| `eutils_einfo`           | `version` (`"2.0"` adds `is_truncatable` and `is_rangeable` per field)                                                                                       |
+| `eutils_elink`           | `term`, `holding`, `idtype`, and the commands in the table above                                                                                             |
+| `eutils_link_then_fetch` | `retmode`                                                                                                                                                    |
+
+### Deliberate differences from the manual
+
+The manual describes the wire API. The server makes a few choices on top of it.
+
+- `db` is required where the manual defaults to `pubmed`: `eutils_esearch`,
+  `eutils_epost`, and `eutils_espell` require `db`, `eutils_elink` requires
+  `dbfrom`, and `eutils_esummary` / `eutils_efetch` accept an omitted `db` only
+  when a History handle carries one.
+- `usehistory` defaults to true. The manual treats it as opt-in; pass
+  `usehistory: false` to skip the handle.
+- `retmax` is capped per tool: 10,000 for `eutils_esearch`, 500 per call for
+  `eutils_esummary` and `eutils_efetch`. Larger UID lists are split into batches of 500. The manual allows 10,000 for EFetch.
+- `eutils_elink` with an omitted `db` returns same-database neighbors, as described
+  above, rather than the manual's `pubmed` default.
+- `llinkslib` is not exposed because the live API rejects it, and `retmode=ref` is
+  not exposed because it redirects to a non-NCBI host.
+- ESummary `retstart` is 0-based in the live API even though the manual says default
+  1; the server passes the value explicitly.
 
 ### Working with large result sets
 

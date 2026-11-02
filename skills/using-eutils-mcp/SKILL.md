@@ -20,29 +20,31 @@ below retrieves literature with the fewest calls.
    500 UIDs. **The `pmcid` field answers free-full-text in the same call**:
    present means `eutils_efetch(db=pmc)` works; absent means PMC has no copy.
 3. `eutils_efetch` to read. `db=pubmed, rettype=abstract` for abstracts;
-   `db=pmc` with the PMCID number (no `PMC` prefix) for full text, and pass a
-   `rettype` the PMC database accepts. `eutils_search_then_fetch` /
+   `db=pmc` with the PMCID number (no `PMC` prefix) for full text. Omit
+   `rettype` to get PMC's default XML, or pass `rettype=medline` with
+   `retmode=text` for plain text. `eutils_search_then_fetch` /
    `eutils_link_then_fetch` combine steps when suitable.
 
 ## Quick Reference
 
-| Task                         | Tool call                                                      |
-| ---------------------------- | -------------------------------------------------------------- |
-| Find papers                  | eutils_esearch db=pubmed term=`"...[Mesh] AND ..."` retmax=20  |
-| Titles/doi + free-text check | eutils_esummary db=pubmed uids=`["..."]`                       |
-| Abstracts                    | eutils_efetch db=pubmed uids=`["..."]` rettype=abstract        |
-| Full text                    | eutils_efetch db=pmc uids=`["<digits>"]` (rettype as accepted) |
-| PubMed to PMC mapping        | eutils_elink dbfrom=pubmed db=pmc uids=`["..."]`               |
-| Citation to PMID             | eutils_ecitmatch with pipe-delimited citations                 |
-| Spelling help                | eutils_espell                                                  |
+| Task                         | Tool call                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| Find papers                  | eutils_esearch db=pubmed term=`"...[Mesh] AND ..."` retmax=20                |
+| Titles/doi + free-text check | eutils_esummary db=pubmed uids=`["..."]`                                     |
+| Abstracts                    | eutils_efetch db=pubmed uids=`["..."]` rettype=abstract                      |
+| Full text                    | eutils_efetch db=pmc uids=`["<digits>"]` (no rettype = XML; or medline/text) |
+| PubMed to PMC mapping        | eutils_elink dbfrom=pubmed db=pmc uids=`["..."]`                             |
+| Citation to PMID             | eutils_ecitmatch with pipe-delimited citations                               |
+| Spelling help                | eutils_espell                                                                |
 
 ## Interface Notes
 
 - `uids` accepts a real array or a comma-separated string. PMCID numbers go to
   `db=pmc`, PMIDs to `db=pubmed`; never mix them.
-- `eutils_elink` batch results merge every article into one pool, and
-  `pubmed_pmc_refs` are papers the article _cites_, not the article itself.
-  Only a `pubmed_pmc` link (or `eutils_esummary`'s `pmcid`) proves free full text.
+- `eutils_elink` batch results merge every article into one pool. Only a
+  `pubmed_pmc` link (or `eutils_esummary`'s `pmcid`) proves free full text. The
+  manual does not define which direction `pubmed_pmc_refs` runs, so do not read
+  it as either the article's citations or the papers that cite it.
 - Responses over 25,000 characters truncate; a single oversized record keeps
   head and tail. Never page a single record with `retstart` (it moves between
   records) — read the abstract instead.
@@ -60,8 +62,8 @@ publisher site.
 
 ## Common Mistakes
 
-- Claiming free full text from `pubmed_pmc_refs` hits. Check `pubmed_pmc` or
-  `pmcid` instead.
+- Treating `pubmed_pmc_refs` as free full text in either direction. Check
+  `pubmed_pmc` or `pmcid` instead; the manual leaves the direction undefined.
 - Retrying a truncated single record with `retstart`. Read
   `rettype=abstract` instead.
 - Broad plain-term search, then screening dozens of irrelevant hits. Start

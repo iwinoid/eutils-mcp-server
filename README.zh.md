@@ -233,7 +233,83 @@ NCBI 的 `egquery.fcgi` 返回 HTTP 301，跳转到
 | `eutils_link_then_fetch`   | 一次调用完成跳转加下载目标记录                   |
 
 每个工具对应九个 E-utilities 中的一个。工具名在 `eutils_` 前缀后带上 E-utilities 的名字，
-所以 `eutils_esearch` 调的是 `esearch.fcgi`。参数名沿用 API 的写法，手册可以直接对照。
+所以 `eutils_esearch` 调的是 `esearch.fcgi`。参数名沿用 NCBI 的写法（`db`、`dbfrom`、
+`retmax`、`retstart`、`usehistory`、`WebEnv` 等），但本服务不是原样转发：它会选择
+输出格式、按命令校验参数，并有几处与手册不同的有意选择。下面几节逐条说明。
+
+### 输出格式
+
+EFetch 必须指定记录格式，而手册给每个数据库的默认值不同。省略 `rettype` 时，
+`eutils_efetch` 按数据库套用下面的默认值：
+
+| `db`                               | 省略 `rettype` 和 `retmode`    | 省略 `rettype`、`retmode=text` |
+| ---------------------------------- | ------------------------------ | ------------------------------ |
+| `pubmed`                           | abstract / text                | abstract / text                |
+| `protein`、`nuccore`、`nucleotide` | FASTA / text                   | FASTA / text                   |
+| `pmc`                              | 不发格式参数（XML）            | medline / text                 |
+| 其他数据库                         | 不发格式参数（数据库原生格式） | 只发 `retmode=text`，原生格式  |
+
+显式给 `rettype` 时原样发送，`retmode` 默认 `text`。`retmode` 支持 `text`、`xml`、
+`asn.1`。`asn.1` 指文本 ASN.1：gene、homologene、snp 返回这种格式。`protein`、
+`nuccore`、`nucleotide` 的二进制 ASN.1 无法通过文本通道安全传递，服务端会拒绝
+该组合并给出可操作的错误。取序列记录时，`strand`、`seq_start`、`seq_stop`、
+`complexity` 可以指定或收窄返回的序列。两个 workflow 工具套用同一套默认值。
+没有发送格式参数时，响应里的 `rettype`、`retmode` 写 `default`。
+
+### ELink 命令
+
+`eutils_elink` 覆盖线上 API 会响应的全部命令：`neighbor`、`neighbor_score`、
+`neighbor_history`、`acheck`、`ncheck`、`lcheck`、`llinks`、`prlinks`。每个命令
+有自己的返回结构和参数规则。
+
+| `cmd`              | 返回                                       | 参数                                 |
+| ------------------ | ------------------------------------------ | ------------------------------------ |
+| `neighbor`（默认） | `groups`，含链接到的 UID                   | `db`、`linkname`、`term`（仅同库时） |
+| `neighbor_score`   | `groups`，含 `ids` 与对齐的 `scores`       | `db`（必须等于 `dbfrom`）、`term`    |
+| `neighbor_history` | `groups`，含 `query_key`；另有 `histories` | `db`、`linkname`、`term`（仅同库时） |
+| `acheck`           | `available_links`                          | `db` 作为过滤条件                    |
+| `ncheck`           | `link_checks`                              | `db`（只能等于 `dbfrom`，不发送）    |
+| `lcheck`           | `link_checks`                              | 无                                   |
+| `llinks`           | `provider_links`                           | `holding`                            |
+| `prlinks`          | `provider_links`                           | 无                                   |
+
+`linkname` 只对 `neighbor` 和 `neighbor_history` 有效。`term` 只对 `neighbor`、
+`neighbor_score`、`neighbor_history` 有效，且要求 `db` 等于 `dbfrom`。`idtype` 只接受
+`acc`。`ncheck` 接受 `db=dbfrom` 做一致性检查，但仍不发送 `db`。
+
+省略 `db` 时，三个 `neighbor` 命令会发送 `db=dbfrom`，返回源库内部的邻居。手册把
+省略的 `db` 当成 `pubmed`；本服务选择工具说明承诺的同库语义。`acheck` 则不发 `db`，
+列出全部可用链接，因为它的 `db` 只是过滤条件。`ncheck`、`lcheck`、`llinks`、
+`prlinks` 从不发送 `db`。
+
+### 0.2.0 补齐的参数
+
+工具补齐了流水线会用到的手册可选参数：
+
+| 工具                     | 参数                                                                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eutils_esearch`         | `history`（复用 WebEnv 和 query key）、`reldate`（最近若干天，需同时给 `datetype`）；sort 示例改为 `pub_date`、`Author`、`JournalName`、`relevance` |
+| `eutils_epost`           | `web_env`（把 UID 列表追加到已有 Web 环境）                                                                                                         |
+| `eutils_efetch`          | `strand`、`seq_start`、`seq_stop`、`complexity`；`retmode=asn.1` 仅限文本 ASN.1（序列库会拒绝）                                                     |
+| `eutils_einfo`           | `version`（`"2.0"` 为每个字段增加 `is_truncatable`、`is_rangeable`）                                                                                |
+| `eutils_elink`           | `term`、`holding`、`idtype`，以及上表的命令                                                                                                         |
+| `eutils_link_then_fetch` | `retmode`                                                                                                                                           |
+
+### 与手册的有意差异
+
+手册描述的是线上 API。本服务在它之上做了几处选择：
+
+- `db` 必填：手册默认 `pubmed`，但 `eutils_esearch`、`eutils_epost`、`eutils_espell`
+  要求显式 `db`，`eutils_elink` 要求显式 `dbfrom`，`eutils_esummary` /
+  `eutils_efetch` 只在 History 句柄自带库名时才允许省略 `db`。
+- `usehistory` 默认 true。手册把它当可选开关；需要跳过 History 时传
+  `usehistory: false`。
+- `retmax` 按工具设上限：`eutils_esearch` 10,000，`eutils_esummary` 和
+  `eutils_efetch` 每次 500。更大的 UID 列表会按 500 分批。手册对 EFetch 允许 10,000。
+- 省略 `db` 时，`eutils_elink` 返回同库邻居（见上），而不是手册的 `pubmed` 默认。
+- 不暴露 `llinkslib`（线上 API 拒绝该命令），也不暴露 `retmode=ref`（会重定向到
+  非 NCBI 主机）。
+- 线上 ESummary 的 `retstart` 是 0 基，而手册写默认 1；本服务显式传值。
 
 ### 处理大数据集
 
