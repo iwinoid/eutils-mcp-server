@@ -24,7 +24,7 @@
     "refresh:databases": "node --env-file-if-exists=.env scripts/refresh-databases.mjs",
     "clean": "rm -rf dist",
     "doctor": "npm run build && node --env-file-if-exists=.env scripts/doctor.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

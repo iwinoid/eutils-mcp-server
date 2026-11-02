@@ -7,8 +7,18 @@ import {
   respond,
   sanitizeUntrusted,
   truncateWithNotice,
+  type ToolTextResult,
 } from '../src/services/formatters.js';
 import { EUtilsError } from '../src/types.js';
+
+function resultText(result: ToolTextResult): string {
+  const block = result.content[0];
+  return block !== undefined && block.type === 'text' ? block.text : '';
+}
+
+function structuredContent(result: ToolTextResult): Record<string, unknown> {
+  return (result.structuredContent ?? {}) as Record<string, unknown>;
+}
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from '../src/constants.js';
 
 describe('sanitizeUntrusted', () => {
@@ -91,7 +101,7 @@ describe('respond', () => {
       markdown: '# Two things',
       format: 'markdown',
     });
-    expect(result.content[0]?.text).toBe('# Two things');
+    expect(resultText(result)).toBe('# Two things');
     expect(result.structuredContent).toEqual({ total: 2 });
   });
 
@@ -101,7 +111,7 @@ describe('respond', () => {
       markdown: '# Two things',
       format: 'json',
     });
-    expect(JSON.parse(result.content[0]?.text ?? '{}')).toEqual({ total: 2 });
+    expect(JSON.parse(resultText(result) || '{}')).toEqual({ total: 2 });
   });
 
   it('flags truncation in the structured payload as well as the text', () => {
@@ -110,14 +120,14 @@ describe('respond', () => {
       markdown: 'x'.repeat(30_000),
       format: 'markdown',
     });
-    expect(result.structuredContent?.['truncated']).toBe(true);
-    expect(result.structuredContent?.['truncation_message']).toBeTruthy();
+    expect(structuredContent(result)['truncated']).toBe(true);
+    expect(structuredContent(result)['truncation_message']).toBeTruthy();
   });
 
   it('keeps JSON parseable when the body is truncated', () => {
     const result = respond({ structured: { text: 'x'.repeat(30000) }, markdown: '', format: 'json' });
-    expect(() => JSON.parse(result.content[0]!.text)).not.toThrow();
-    expect(String(result.structuredContent!['text']).length).toBeLessThanOrEqual(25000);
+    expect(() => JSON.parse(resultText(result))).not.toThrow();
+    expect(String(structuredContent(result)['text']).length).toBeLessThanOrEqual(25000);
   });
 });
 
@@ -125,14 +135,14 @@ describe('errorResult', () => {
   it('renders an EUtilsError with its suggestion', () => {
     const result = errorResult(new EUtilsError('rate_limit', 'Too fast.', 'Slow down or set NCBI_API_KEY.'));
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain('rate_limit');
-    expect(result.content[0]?.text).toContain('Suggested next step');
+    expect(resultText(result)).toContain('rate_limit');
+    expect(resultText(result)).toContain('Suggested next step');
   });
 
   it('renders an unknown error without leaking a stack', () => {
     const result = errorResult(new Error('boom'));
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toBe('Error: boom');
+    expect(resultText(result)).toBe('Error: boom');
   });
 });
 
