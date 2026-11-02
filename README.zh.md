@@ -4,7 +4,7 @@
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme) [![CI](https://img.shields.io/github/actions/workflow/status/iwinoid/eutils-mcp-server/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/iwinoid/eutils-mcp-server/actions) [![LICENSE MIT](https://img.shields.io/badge/LICENSE-MIT-blue?style=flat-square)](LICENSE) [![POWERED BY DEEPSEEK](https://img.shields.io/badge/POWERED_BY-DEEPSEEK-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://www.deepseek.com) [![powered by dsh](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
-把 NCBI 的九个 Entrez E-utilities 包装成 11 个只读工具的 MCP server。
+把 NCBI 的九个 Entrez E-utilities 包装成 11 个工具的 MCP server。它不写本地文件；部分工具会在 NCBI 创建 History 集合。
 
 它把 E-utilities 直接交给大模型，让模型能检索生物医学文献、取序列、在 Entrez 各库之间
 跳转，不用浏览器，也不用爬网页。仓库目录名 `E-utilities` 来自它所包装的 API。包名、
@@ -40,8 +40,8 @@ Entrez Programming Utilities 是 NCBI 的九个服务端程序。它们共用一
 NCBI 封 IP。
 
 本服务把这些细节写进代码。由一个 client 负责拼每个 URL、给每个请求限速、在允许列表内跟随
-重定向、限制响应体积、遮蔽 API key。每个工具只做一件事：把一次操作映射成一次 E-utilities
-调用，返回模型能读的结果。
+重定向、限制响应体积、遮蔽 API key。每个工具对应一个 E-utilities 端点（两个 workflow 工具会串几次调用），
+返回模型能读的结果。
 
 两条上游事实决定了设计。EGQuery 从公网不可达，ESummary 的 JSON 上限是 500 条而不是手册
 写的 10,000 条。两条都带证据记在 [docs/upstream-issues.md](docs/upstream-issues.md)。
@@ -59,8 +59,8 @@ npm run build
 
 需要 Node.js 22.9 或更高版本，版本锁在 `.nvmrc`。
 
-运行时依赖三个：`@modelcontextprotocol/server`、`fast-xml-parser`、`zod`。lockfile 已提交。
-没有安装脚本，也没有原生构建步骤。
+直接运行时依赖三个：`@modelcontextprotocol/server`、`fast-xml-parser`、`zod`；lockfile
+当前解析出 11 个运行时包（含传递依赖）。lockfile 已提交，没有安装脚本，也没有原生构建步骤。
 
 ## 用法
 
@@ -162,7 +162,7 @@ NCBI 要求大任务放在周末。工作日请放在美东时间 21:00 到次�
 - **`retmax` 上限。** `eutils_esearch` 最多 10,000 条。`eutils_esummary` 和 `eutils_efetch`
   每次最多 500 条。更大的 UID 列表会自动切成每批 500 条，响应里用 `batches` 标明批数。
 - **PubMed 和 PMC 上限。** ESearch 只能取到结果集的前 10,000 条。更大的集合请加日期条件分段。
-- **截断。** 响应超过 25,000 字符会被截断。截断消息会说明如何翻页或收窄查询。单篇记录超限时保留头部和尾部并标注省略位置，因为 `retstart` 只能在记录之间翻页，不能切分单篇。
+- **截断。** 文本块上限为 25,000 字符，截断消息会说明如何翻页或收窄查询。`structuredContent` 也按同一预算裁剪，JSON 结果仍是合法 JSON。单篇 EFetch 记录超限时保留头部和尾部，包括通过 History + `retmax=1` 取回的情况。
 - **响应体积上限。** 响应体超过 5 MB 时客户端会放弃读取。
 - **仅支持 stdio。** 没有 HTTP 传输。若要增加，请绑定 `127.0.0.1` 并校验 `Origin` 和
   `Host` 请求头。
@@ -214,8 +214,9 @@ NCBI 的 `egquery.fcgi` 返回 HTTP 301，跳转到
 ## API
 
 共 11 个工具。每个都接受 `response_format`，取值为 `"markdown"` 或 `"json"`，默认 markdown。
-每个都声明 `readOnlyHint: true` 和 `destructiveHint: false`，并且声明一个它自己的返回值
-必定满足的 `outputSchema`。
+纯读取工具声明 `readOnlyHint: true`、`idempotentHint: true`；会创建 NCBI History 集合的工具声明
+`readOnlyHint: false`、`idempotentHint: false`。所有工具都声明 `destructiveHint: false`、
+`openWorldHint: true`，并声明一个自己的成功返回值必定满足的 `outputSchema`。
 
 | 工具                       | 用途                                             |
 | -------------------------- | ------------------------------------------------ |

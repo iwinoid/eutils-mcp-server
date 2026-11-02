@@ -2,13 +2,13 @@
 
 Probed against live NCBI on 2026-09-11. Every claim here was measured, not read.
 
-This file records four different kinds of problem, because they are easy to confuse:
+This file records four different kinds of problem (fourteen claims in total), because they are easy to confuse:
 
 | Kind                                               | Count | Fixed here?        |
 | -------------------------------------------------- | ----- | ------------------ |
 | Upstream defects we cannot fix                     | 1     | No. Mitigated.     |
 | Undocumented upstream behaviour we had to discover | 4     | Documented here    |
-| Errors in NCBI's published documentation           | 4     | No. Reported here. |
+| Errors in NCBI's published documentation           | 5     | No. Reported here. |
 | Defects in this server, found and fixed            | 4     | Yes                |
 
 ---

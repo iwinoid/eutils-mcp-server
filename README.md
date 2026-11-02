@@ -4,7 +4,7 @@
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme) [![CI](https://img.shields.io/github/actions/workflow/status/iwinoid/eutils-mcp-server/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/iwinoid/eutils-mcp-server/actions) [![LICENSE MIT](https://img.shields.io/badge/LICENSE-MIT-blue?style=flat-square)](LICENSE) [![POWERED BY DEEPSEEK](https://img.shields.io/badge/POWERED_BY-DEEPSEEK-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://www.deepseek.com) [![powered by dsh](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
-MCP server exposing the nine NCBI Entrez E-utilities as eleven read-only tools.
+MCP server exposing the nine NCBI Entrez E-utilities as eleven tools. It never writes to the local filesystem; some tools create History sets on NCBI.
 
 It gives a language model the E-utilities directly, so it can search biomedical
 literature, fetch sequences, and follow links between Entrez databases without a browser
@@ -47,8 +47,8 @@ across calls. NCBI blocks an IP that exceeds its rate limit.
 
 This server puts those details in code. One client builds every URL, paces every request,
 follows redirects within an allowlist, caps response size, and redacts the API key. Each
-tool then maps one operation to one E-utilities call and returns a result the model can
-read.
+tool maps to one E-utilities endpoint (the two workflow tools make several calls) and
+returns a result the model can read.
 
 Two upstream facts shaped the design. EGQuery is unreachable from the public internet,
 and the ESummary JSON limit is 500 records rather than the 10,000 the manual states. Both
@@ -67,8 +67,9 @@ npm run build
 
 Node.js 22.9 or newer. The version is pinned in `.nvmrc`.
 
-The server has three runtime dependencies: `@modelcontextprotocol/server`,
-`fast-xml-parser`, and `zod`. The lockfile is committed. There is no installer script and
+The server has three direct runtime dependencies: `@modelcontextprotocol/server`,
+`fast-xml-parser`, and `zod`. The lockfile currently resolves eleven runtime packages
+(including transitive ones). The lockfile is committed. There is no installer script and
 no native build step.
 
 ## Usage
@@ -184,10 +185,11 @@ NCBI asks that large jobs run at a weekend. On a weekday, run them between 21:00
   500, and the response reports `batches`.
 - **PubMed and PMC caps.** ESearch reaches only the first 10,000 records of a PubMed or
   PMC result set. Add date filters to segment a larger set.
-- **Truncation.** The server cuts a response over 25,000 characters. The message says how
-  to page or narrow the query. A single record larger than the limit keeps its head
-  and tail with an omission marker, because `retstart` pages between records, not
-  within one.
+- **Truncation.** The text block is capped at 25,000 characters. The message says how
+  to page or narrow the query. `structuredContent` is reduced to the same budget, and a
+  JSON result stays valid JSON. A single EFetch record larger than the limit keeps its
+  head and tail with an omission marker, including when it is fetched through History
+  with `retmax=1`.
 - **Response ceiling.** The client abandons a response body over 5 MB.
 - **stdio only.** No HTTP transport. To add one, bind `127.0.0.1` and validate the
   `Origin` and `Host` headers.
@@ -229,15 +231,15 @@ The server is read-only and holds no listener. It never writes to disk. There is
 no port for an attacker to connect to: the only network traffic is outbound HTTPS
 from the server to NCBI.
 
-| Threat                                  | Control                                                                                                                                                                                                                                                                  |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Prompt injection carried by record text | The server fences NCBI record text between `<<<EXTERNAL_NCBI_DATA` markers and labels it as data. It strips fence markers from the content, so the content cannot close the fence early. The server never writes, so it cannot become a deputy for a destructive action. |
-| Parameter injection                     | The server validates `db` against a character-class guard and a 38-database allowlist. It validates UIDs, search terms, and History fields before use. It encodes every value with `URLSearchParams` and never builds a URL by concatenation.                            |
-| API key leakage                         | The server masks `api_key` in every log line, error message, and response. It never echoes the constructed URL to the model. stdio logging goes to stderr only.                                                                                                          |
-| SSRF                                    | The base URL is a constant, not an environment setting. The client follows redirects manually, at most three hops, and every hop must end with `.ncbi.nlm.nih.gov`.                                                                                                      |
-| Resource exhaustion                     | A token bucket, per-endpoint `retmax` ceilings, a 5 MB response ceiling, a request timeout, and bounded retries with backoff.                                                                                                                                            |
-| Malicious XML                           | Entity processing is off. The client strips DOCTYPE declarations and caps the body size before parsing.                                                                                                                                                                  |
-| Supply chain                            | Three runtime dependencies. The lockfile is committed.                                                                                                                                                                                                                   |
+| Threat                                  | Control                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt injection carried by record text | The server fences raw EFetch record text, and the text returned by the two workflow tools, between `<<<EXTERNAL_NCBI_DATA` markers and labels it as data. It strips fence markers from fenced content so the content cannot close the fence early. Summary titles and metadata are rendered as structured fields. The server never writes, so it cannot become a deputy for a destructive action. |
+| Parameter injection                     | The server validates `db` against a character-class guard and a 38-database allowlist. It validates UIDs, search terms, and History fields before use. It encodes every value with `URLSearchParams` and never builds a URL by concatenation.                                                                                                                                                     |
+| API key leakage                         | The server masks `api_key` in every log line, error message, and response. It never echoes the constructed URL to the model. stdio logging goes to stderr only.                                                                                                                                                                                                                                   |
+| SSRF                                    | The base URL is a constant, not an environment setting. The client follows redirects manually, at most three hops, and every hop must end with `.ncbi.nlm.nih.gov`.                                                                                                                                                                                                                               |
+| Resource exhaustion                     | A token bucket, per-endpoint `retmax` ceilings, a 5 MB response ceiling, a request timeout, and bounded retries with backoff.                                                                                                                                                                                                                                                                     |
+| Malicious XML                           | Entity processing is off. The client strips DOCTYPE declarations and caps the body size before parsing.                                                                                                                                                                                                                                                                                           |
+| Supply chain                            | Three runtime dependencies. The lockfile is committed.                                                                                                                                                                                                                                                                                                                                            |
 
 Report a vulnerability through the
 [issue tracker](https://github.com/iwinoid/eutils-mcp-server/issues).
@@ -245,8 +247,10 @@ Report a vulnerability through the
 ## API
 
 Eleven tools. Every tool accepts `response_format` of `"markdown"` or `"json"`, and
-defaults to markdown. Every tool reports `readOnlyHint: true` and
-`destructiveHint: false`, and declares an `outputSchema` that its own result satisfies.
+defaults to markdown. Pure readers report `readOnlyHint: true` and `idempotentHint: true`.
+Tools that create an NCBI History set report `readOnlyHint: false` and
+`idempotentHint: false`. Every tool reports `destructiveHint: false` and
+`openWorldHint: true`, and declares an `outputSchema` that its own success result satisfies.
 
 | Tool                       | Purpose                                                                          |
 | -------------------------- | -------------------------------------------------------------------------------- |

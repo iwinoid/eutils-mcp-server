@@ -16,23 +16,16 @@ export default defineConfig({
        * Thresholds sit just below the measured baseline, so they catch a
        * regression without failing on noise. Raising them is the point.
        *
-       * Read the statement number with care. The six tool registrars under
-       * `src/tools/` report 0% here because they run only when the server
-       * starts, and `test/live.test.ts` starts it as a subprocess. The v8
-       * provider cannot see coverage across that process boundary, so roughly
-       * 1,400 lines that the live and contract suites do exercise appear
-       * uncovered. Branch coverage, at 86%, is the number that reflects the
-       * units this run can actually observe.
-       *
-       * To raise the statement number honestly, add in-process tests that call
-       * the tool handlers against a mocked `EutilsClient`. Do not lower these
-       * values to make a build pass.
+       * The tool handlers are exercised in-process by test/toolHarness.ts, so
+       * src/tools/ no longer reports 0%. The measured baseline is roughly 73%
+       * statements, 82% branches, and 83% functions. Do not lower these values
+       * to make a build pass; add a test instead.
        */
       thresholds: {
-        statements: 30,
+        statements: 70,
         branches: 80,
         functions: 80,
-        lines: 30,
+        lines: 70,
       },
     },
   },

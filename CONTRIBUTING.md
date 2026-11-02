@@ -15,9 +15,11 @@ separates a local fault from an upstream one.
 Pull requests are accepted. Keep one change per pull request, and describe what
 motivated it.
 
-Every pull request must pass `npm run ci` locally before you open it. The same sequence
-runs in GitHub Actions, so a green local run means a green pipeline. A pull request that
-lowers a coverage threshold instead of raising coverage will be sent back.
+Every pull request must pass `npm run ci` locally before you open it. That command runs
+lint, formatting, type checking (source and tests), coverage, and the build. GitHub
+Actions additionally runs the offline protocol check and the runtime dependency audit, so
+read the job list as well as the local result. A pull request that lowers a coverage
+threshold instead of raising coverage will be sent back.
 
 ## Requirements
 
@@ -38,13 +40,13 @@ npm test
 
 | Command                        | Purpose                                               |
 | ------------------------------ | ----------------------------------------------------- |
-| `npm run ci`                   | Everything the pipeline runs, in one command          |
+| `npm run ci`                   | Lint, formatting, typecheck, coverage, and build      |
 | `npm test`                     | Unit tests. No network.                               |
 | `npm run test:coverage`        | Unit tests with a coverage report and thresholds      |
 | `npm run test:live`            | Integration tests. Every tool makes a real NCBI call. |
 | `npm run lint`                 | ESLint                                                |
 | `npm run format`               | Prettier, writes                                      |
-| `npm run typecheck`            | `tsc --noEmit`                                        |
+| `npm run typecheck`            | `tsc` for src, then `tsconfig.test.json` for tests    |
 | `npm run verify`               | Protocol smoke test over stdio. No live calls.        |
 | `npm run doctor`               | Probe all nine endpoints and report which answer      |
 | `npm run call <tool> '<json>'` | Invoke one tool directly                              |
@@ -54,14 +56,26 @@ Without a key NCBI allows three requests per second, and the live suite takes no
 
 ## Reading the Coverage Number
 
-Statement coverage sits near 31% and branch coverage near 86%. The gap is not a gap in
-testing. The six tool registrars under `src/tools/` run only when the server starts, and
-the live and contract suites start it as a subprocess. The v8 provider cannot see across
-that process boundary, so roughly 1,400 lines those suites do exercise appear uncovered.
-Branch coverage is the number to read.
+Statement coverage sits near 73% and branch coverage near 82%. The `src/tools/` handlers
+are exercised in-process through `test/toolHarness.ts`, which registers the real tools
+with a stub `EUtilsClient`; the remaining gaps are mostly error paths in the HTTP client
+and the live-only branches. Do not lower the thresholds in `vitest.config.ts`.
 
-To raise the statement figure honestly, add in-process tests that call the tool handlers
-against a mocked `EutilsClient`. Do not lower the thresholds in `vitest.config.ts`.
+## Naming and API conventions
+
+- MCP protocol symbols use the SDK spelling: `McpServer`, `inputSchema`, `outputSchema`,
+  `structuredContent`, `isError`, `ToolAnnotations`, `readOnlyHint`, `idempotentHint`,
+  `openWorldHint`, `CallToolResult`, `serverInfo`, `protocolVersion`.
+- NCBI wire parameters use the upstream spelling exactly, and only the map in
+  `src/services/eutilsParams.ts` may define them: `db`, `dbfrom`, `id`, `term`, `retmax`,
+  `retstart`, `usehistory`, `WebEnv`, `query_key`, `rettype`, `retmode`, `mindate`,
+  `maxdate`, `datetype`, `sort`, `cmd`, `linkname`, `bdata`, `api_key`, `tool`, `email`.
+- Internal TypeScript uses `EUtils` spelling for the API and camelCase for variables: `ESearch`,
+  `EPost`, `ESummary`, `EFetch`, `ELink`, `EGQuery`, `ESpell`, `ECitMatch`, `EInfo`.
+- `HistoryRef` and the `groups` fields in `parseELink` are wire DTOs: their snake_case field
+  names are part of the MCP result contract and are deliberately not renamed.
+- ESLint enforces camelCase/PascalCase/UPPER_CASE for variables, functions, parameters, and
+  types. It does not rename protocol or wire properties.
 
 ## Layout
 
