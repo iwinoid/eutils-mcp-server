@@ -17,8 +17,8 @@ export default defineConfig({
        * regression without failing on noise. Raising them is the point.
        *
        * The tool handlers are exercised in-process by test/toolHarness.ts, so
-       * src/tools/ no longer reports 0%. The measured baseline is roughly 78%
-       * statements, 81% branches, and 87% functions. Do not lower these values
+       * src/tools/ no longer reports 0%. The measured baseline is roughly 77%
+       * statements, 80% branches, and 87% functions. Do not lower these values
        * to make a build pass; add a test instead.
        */
       thresholds: {

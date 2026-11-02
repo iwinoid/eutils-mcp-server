@@ -19,6 +19,10 @@
 - ECitMatch maps replies by citation key when NCBI omits a line.
 - Input ceilings: 2,000 UIDs per call, 200 citations per call, and 1,000
   characters per citation.
+- MCP cancellation now reaches the rate limiter, retry backoff, redirects, and
+  fetch; an aborted request stops instead of consuming more NCBI quota.
+- EGQuery fallback uses a 5-second per-database timeout with no retries, and
+  stops when the MCP call is cancelled.
 
 ### Changed
 

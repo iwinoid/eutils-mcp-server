@@ -56,7 +56,7 @@ Without a key NCBI allows three requests per second, and the live suite takes no
 
 ## Reading the Coverage Number
 
-Statement coverage sits near 78% and branch coverage near 81%. The `src/tools/` handlers
+Statement coverage sits near 77% and branch coverage near 80%. The `src/tools/` handlers
 are exercised in-process through `test/toolHarness.ts`, which registers the real tools
 with a stub `EUtilsClient`; the remaining gaps are mostly error paths in the HTTP client
 and the live-only branches. Do not lower the thresholds in `vitest.config.ts`.
