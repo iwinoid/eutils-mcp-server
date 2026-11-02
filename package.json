@@ -1,6 +1,6 @@
 {
   "name": "eutils-mcp-server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP server exposing the nine NCBI Entrez E-utilities as eleven tools",
   "license": "MIT",
   "author": "iwinoid",
