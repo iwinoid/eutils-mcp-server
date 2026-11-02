@@ -4,10 +4,16 @@ import { DEFAULT_RETMAX } from '../constants.js';
 import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, pageInfo, respond, type ToolTextResult } from '../services/formatters.js';
-import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
+import {
+  parseUids,
+  validateDatabase,
+  validateHistory,
+  validateRetmax,
+  validateWebEnv,
+} from '../services/validate.js';
 import { parseXml } from '../services/xml.js';
 import { parseEPost, parseESearch } from './parse.js';
-import { ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
+import { HistorySchema, ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
 
 const ESearchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed" or "protein".'),
@@ -32,7 +38,7 @@ const ESearchInput = z.object({
     .string()
     .optional()
     .describe(
-      'Sort order, for example "pub_date", "relevance", or "first_author". Valid values vary by database.',
+      'Sort order. PubMed accepts "pub_date", "Author", "JournalName", or "relevance"; other databases accept different values.',
     ),
   datetype: z
     .enum(['pdat', 'edat', 'mdat'])
@@ -42,12 +48,21 @@ const ESearchInput = z.object({
     ),
   mindate: z.string().optional().describe('Start date, as YYYY, YYYY/MM, or YYYY/MM/DD. Requires datetype.'),
   maxdate: z.string().optional().describe('End date, as YYYY, YYYY/MM, or YYYY/MM/DD. Requires datetype.'),
+  reldate: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Only include records whose datetype date falls within the last N days. Requires datetype.'),
   usehistory: z
     .boolean()
     .optional()
     .describe(
       'Store the result set on the NCBI History server and return a history handle (default true). Set false to skip it.',
     ),
+  history: HistorySchema.optional().describe(
+    'History handle from an earlier call. The search appends its result set to that Web Environment, so a later call can combine the two sets. db must match history.db.',
+  ),
   response_format: ResponseFormatSchema,
 });
 
@@ -56,6 +71,13 @@ const EPostInput = z.object({
   uids: z
     .union([z.string(), z.array(z.string())])
     .describe('UIDs or accessions to upload, as an array or a comma-separated string.'),
+  web_env: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'WebEnv cookie from an earlier call. When set, the UIDs are appended to that Web Environment as a new query key.',
+    ),
   response_format: ResponseFormatSchema,
 });
 
@@ -94,13 +116,42 @@ async function runESearch(
   const term = requireTerm(input.term);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esearch');
   const retstart = input.retstart ?? 0;
-  const useHistory = input.usehistory ?? true;
+  const historyRef = input.history ? validateHistory(input.history) : undefined;
+
+  if (historyRef !== undefined && historyRef.db !== db) {
+    throw new EUtilsError(
+      'validation',
+      `db '${db}' does not match history.db '${historyRef.db}'.`,
+      'Omit history, or pass a history object belonging to the same database.',
+    );
+  }
+  if (historyRef !== undefined && input.usehistory === false) {
+    throw new EUtilsError(
+      'validation',
+      'A history reference was supplied with usehistory=false.',
+      'Omit usehistory, or set it to true: ESearch must append to the History server when a history reference is given.',
+    );
+  }
+  if (input.reldate !== undefined && input.datetype === undefined) {
+    throw new EUtilsError(
+      'validation',
+      'reldate requires datetype.',
+      'Pass datetype ("pdat", "edat", or "mdat") alongside reldate.',
+    );
+  }
+
+  const useHistory = historyRef !== undefined ? true : (input.usehistory ?? true);
 
   const params: QueryParams = { db, term, retmax, retstart, retmode: 'json' };
+  if (historyRef !== undefined) {
+    params['WebEnv'] = historyRef.web_env;
+    params['query_key'] = historyRef.query_key;
+  }
   if (input.sort) params['sort'] = input.sort;
   if (input.datetype) params['datetype'] = input.datetype;
   if (input.mindate) params['mindate'] = input.mindate;
   if (input.maxdate) params['maxdate'] = input.maxdate;
+  if (input.reldate !== undefined) params['reldate'] = input.reldate;
   if (useHistory) params['usehistory'] = 'y';
 
   const res = await client.request({ endpoint: 'esearch.fcgi', params, signal });
@@ -169,12 +220,16 @@ async function runEPost(
 ): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const uids = parseUids(input.uids);
+  const webEnv = input.web_env !== undefined ? validateWebEnv(input.web_env) : undefined;
 
   // EPost answers JSON requests with HTTP 500, so the request stays XML and
   // is parsed locally.
+  const params: QueryParams = { db, id: uids.join(',') };
+  if (webEnv !== undefined) params['WebEnv'] = webEnv;
+
   const res = await client.request({
     endpoint: 'epost.fcgi',
-    params: { db, id: uids.join(',') },
+    params,
     signal,
   });
 
@@ -234,10 +289,12 @@ Args:
   - term (string): Entrez query, for example "breast cancer AND 2008[pdat]".
   - retmax (number, optional): UIDs to return, 0-10000. Default 20. Use 0 for count only.
   - retstart (number, optional): index of the first UID. Default 0.
-  - sort (string, optional): "pub_date", "relevance", "first_author", ...
-  - datetype ('pdat' | 'edat' | 'mdat', optional): date field for mindate/maxdate.
+  - sort (string, optional): "pub_date", "Author", "JournalName", or "relevance" for PubMed; other databases differ.
+  - datetype ('pdat' | 'edat' | 'mdat', optional): date field for mindate/maxdate/reldate.
   - mindate, maxdate (string, optional): YYYY, YYYY/MM, or YYYY/MM/DD.
+  - reldate (number, optional): only records with a datetype date in the last N days. Requires datetype.
   - usehistory (boolean, optional): return a History handle. Default true.
+  - history (object, optional): append this search to an existing Web Environment. db must match history.db.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Returns:
@@ -279,6 +336,7 @@ want to combine several sets. Many thousands of UIDs fit in one call.
 Args:
   - db (string): database the UIDs belong to, for example "gene".
   - uids (string[] | string): UIDs or accessions, as an array or comma-separated string.
+  - web_env (string, optional): WebEnv cookie of an earlier call. Appends the UIDs to that Web Environment.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Returns:

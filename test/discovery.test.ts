@@ -45,3 +45,77 @@ describe('EGQuery fallback accounting', () => {
     expect(result.isError).toBe(true);
   });
 });
+
+function einfoBody(): unknown {
+  return {
+    einforesult: {
+      dbinfo: [
+        {
+          dbname: 'pubmed',
+          menuname: 'PubMed',
+          description: 'PubMed bibliographic record',
+          dbbuild: 'Build-2026.09.10.13.11',
+          count: '41133096',
+          lastupdate: '2026/09/10 13:11',
+          fieldlist: [
+            {
+              name: 'ALL',
+              fullname: 'All Fields',
+              description: 'All terms from all searchable fields',
+              termcount: '',
+              istruncatable: 'Y',
+              israngable: 'Y',
+            },
+            {
+              name: 'UID',
+              fullname: 'UID',
+              description: 'Unique number assigned to publication',
+              termcount: '',
+              istruncatable: 'N',
+              israngable: 'N',
+            },
+            { name: 'TITL', fullname: 'Title', description: 'Words in title of publication' },
+          ],
+          linklist: [],
+        },
+      ],
+    },
+  };
+}
+
+describe('EInfo version 2.0 field flags', () => {
+  it('sends version=2.0 and parses the new flags', async () => {
+    const harness = createHarness(() => json(einfoBody()));
+    const result = await harness.call('eutils_einfo', {
+      db: 'pubmed',
+      version: '2.0',
+      response_format: 'json',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(harness.calls).toHaveLength(1);
+    expect(harness.calls[0]?.params['version']).toBe('2.0');
+    expect(result.structuredContent.fields[0]).toMatchObject({
+      is_truncatable: true,
+      is_rangeable: true,
+    });
+    expect(result.structuredContent.fields[1]).toMatchObject({
+      is_truncatable: false,
+      is_rangeable: false,
+    });
+    expect(result.structuredContent.fields[2].is_truncatable).toBeUndefined();
+    expect(result.structuredContent.fields[2].is_rangeable).toBeUndefined();
+  });
+
+  it('omits version by default', async () => {
+    const harness = createHarness(() => json(einfoBody()));
+    await harness.call('eutils_einfo', { db: 'pubmed', response_format: 'json' });
+    expect(harness.calls[0]?.params['version']).toBeUndefined();
+  });
+
+  it('rejects an unknown database without a request', async () => {
+    const harness = createHarness(() => json(einfoBody()));
+    const result = await harness.call('eutils_einfo', { db: 'notarealdb', response_format: 'json' });
+    expect(result.isError).toBe(true);
+    expect(harness.calls).toHaveLength(0);
+  });
+});

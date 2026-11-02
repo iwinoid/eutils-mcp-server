@@ -13,6 +13,12 @@ const EInfoInput = z.object({
     .string()
     .optional()
     .describe('Entrez database to describe, for example "pubmed" or "protein". Omit to list all databases.'),
+  version: z
+    .literal('2.0')
+    .optional()
+    .describe(
+      'Request EInfo version 2.0, which adds is_truncatable and is_rangeable flags to every field. The only supported value is "2.0".',
+    ),
   response_format: ResponseFormatSchema,
 });
 
@@ -39,7 +45,16 @@ const EInfoOutput = z.looseObject({
   database: z.string().optional().describe('Database name, when db was given.'),
   record_count: z.number().optional(),
   field_count: z.number().optional(),
-  fields: z.array(z.looseObject({ name: z.string(), fullname: z.string() })).optional(),
+  fields: z
+    .array(
+      z.looseObject({
+        name: z.string(),
+        fullname: z.string(),
+        is_truncatable: z.boolean().optional(),
+        is_rangeable: z.boolean().optional(),
+      }),
+    )
+    .optional(),
   link_count: z.number().optional(),
   links: z.array(z.looseObject({ name: z.string(), dbto: z.string() })).optional(),
 });
@@ -70,6 +85,8 @@ interface DbField {
   fullname: string;
   description: string;
   termcount?: string;
+  is_truncatable?: boolean;
+  is_rangeable?: boolean;
 }
 
 interface DbLink {
@@ -78,13 +95,27 @@ interface DbLink {
   menu: string;
 }
 
+function readFieldFlag(value: unknown): boolean | undefined {
+  const text = textOf(value).trim();
+  if (text === 'Y') return true;
+  if (text === 'N') return false;
+  return undefined;
+}
+
 function readFields(dbinfo: Record<string, unknown>): DbField[] {
-  return (asArray(dbinfo['fieldlist']) as Record<string, unknown>[]).map((field) => ({
-    name: textOf(field['name']),
-    fullname: textOf(field['fullname']),
-    description: textOf(field['description']),
-    ...(textOf(field['termcount']) ? { termcount: textOf(field['termcount']) } : {}),
-  }));
+  return (asArray(dbinfo['fieldlist']) as Record<string, unknown>[]).map((field) => {
+    const isTruncatable = readFieldFlag(field['istruncatable']);
+    const isRangeable = readFieldFlag(field['israngable']);
+
+    return {
+      name: textOf(field['name']),
+      fullname: textOf(field['fullname']),
+      description: textOf(field['description']),
+      ...(textOf(field['termcount']) ? { termcount: textOf(field['termcount']) } : {}),
+      ...(isTruncatable !== undefined ? { is_truncatable: isTruncatable } : {}),
+      ...(isRangeable !== undefined ? { is_rangeable: isRangeable } : {}),
+    };
+  });
 }
 
 function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
@@ -102,6 +133,7 @@ async function runEInfo(
 ): Promise<ToolTextResult> {
   const params: QueryParams = { retmode: 'json' };
   if (input.db) params['db'] = validateDatabase(input.db);
+  if (input.version !== undefined) params['version'] = input.version;
 
   const res = await client.request({ endpoint: 'einfo.fcgi', params, signal });
   const root = requireSection<Record<string, unknown>>(res.json, 'einforesult', 'EInfo');
@@ -407,12 +439,14 @@ databases.
 
 Args:
   - db (string, optional): database to describe, for example "pubmed". Omit to list all.
+  - version ('2.0', optional): request EInfo 2.0, which adds is_truncatable and is_rangeable to every field.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Returns:
   Without db: { count, databases: string[] }
   With db: { database, menu_name, description, record_count, last_update, build,
-             field_count, fields: [{ name, fullname, description, termcount? }],
+             field_count, fields: [{ name, fullname, description, termcount?,
+                                     is_truncatable?, is_rangeable? }],
              link_count, links: [{ name, dbto, menu }] }
 
 Examples:

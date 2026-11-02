@@ -134,15 +134,8 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
   return out;
 }
 
-/** Validate a History reference supplied by the caller. */
-export function validateHistory(history: { db: string; web_env: string; query_key: string }): {
-  db: string;
-  web_env: string;
-  query_key: string;
-} {
-  const db = validateDatabase(history.db);
-  const webEnv = history.web_env.trim();
-  const queryKey = history.query_key.trim();
+export function validateWebEnv(value: string): string {
+  const webEnv = value.trim();
 
   if (webEnv.length === 0 || /[\s&?]/.test(webEnv)) {
     throw new EUtilsError(
@@ -151,6 +144,20 @@ export function validateHistory(history: { db: string; web_env: string; query_ke
       'Pass the history object returned by a previous eutils_esearch, eutils_epost, or eutils_elink call unchanged.',
     );
   }
+
+  return webEnv;
+}
+
+/** Validate a History reference supplied by the caller. */
+export function validateHistory(history: { db: string; web_env: string; query_key: string }): {
+  db: string;
+  web_env: string;
+  query_key: string;
+} {
+  const db = validateDatabase(history.db);
+  const webEnv = validateWebEnv(history.web_env);
+  const queryKey = history.query_key.trim();
+
   if (!/^[0-9]{1,10}$/.test(queryKey)) {
     throw new EUtilsError(
       'validation',
