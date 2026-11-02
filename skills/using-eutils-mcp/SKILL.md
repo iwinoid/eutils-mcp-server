@@ -25,22 +25,22 @@ below retrieves literature with the fewest calls.
 
 ## Quick Reference
 
-| Task | Tool call |
-|---|---|
-| Find papers | esearch db=pubmed term=`"...[Mesh] AND ..."` retmax=20 |
-| Titles/doi + free-text check | esummary db=pubmed uids=`["..."]` |
-| Abstracts | efetch db=pubmed uids=`["..."]` rettype=abstract |
-| Full text | efetch db=pmc uids=`["<digits>"]` rettype=full |
-| PubMed to PMC mapping | elink dbfrom=pubmed db=pmc uids=`["..."]` |
-| Citation to PMID | ecitmatch with pipe-delimited citations |
-| Spelling help | espell |
+| Task                         | Tool call                                              |
+| ---------------------------- | ------------------------------------------------------ |
+| Find papers                  | esearch db=pubmed term=`"...[Mesh] AND ..."` retmax=20 |
+| Titles/doi + free-text check | esummary db=pubmed uids=`["..."]`                      |
+| Abstracts                    | efetch db=pubmed uids=`["..."]` rettype=abstract       |
+| Full text                    | efetch db=pmc uids=`["<digits>"]` rettype=full         |
+| PubMed to PMC mapping        | elink dbfrom=pubmed db=pmc uids=`["..."]`              |
+| Citation to PMID             | ecitmatch with pipe-delimited citations                |
+| Spelling help                | espell                                                 |
 
 ## Interface Notes
 
 - `uids` accepts a real array or a comma-separated string. PMCID numbers go to
   `db=pmc`, PMIDs to `db=pubmed`; never mix them.
 - `elink` batch results merge every article into one pool, and
-  `pubmed_pmc_refs` are papers the article *cites*, not the article itself.
+  `pubmed_pmc_refs` are papers the article _cites_, not the article itself.
   Only a `pubmed_pmc` link (or `esummary`'s `pmcid`) proves free full text.
 - Responses over 25,000 characters truncate; a single oversized record keeps
   head and tail. Never page a single record with `retstart` (it moves between
