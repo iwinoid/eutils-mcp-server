@@ -49,8 +49,8 @@ npm test
 | `npm run doctor`               | Probe all nine endpoints and report which answer      |
 | `npm run call <tool> '<json>'` | Invoke one tool directly                              |
 
-Set `NCBI_API_KEY` in `.env` before `npm run test:live`. Without a key NCBI allows three
-requests per second, and the live suite takes noticeably longer.
+Set `NCBI_API_KEY` in `.env` before `npm run test:live`; that script loads `.env` explicitly.
+Without a key NCBI allows three requests per second, and the live suite takes noticeably longer.
 
 ## Reading the Coverage Number
 

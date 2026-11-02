@@ -144,8 +144,9 @@ API key raises the rate limit.
 | `NCBI_TOOL`    | `eutils-mcp-server` | Name that identifies this software in the NCBI logs.                                                                                               |
 
 Supply the values in the `env` block of your host configuration, or keep them in a `.env`
-file at the project root and launch the server with `--env-file-if-exists`. `npm start`
-and `npm run dev` pass that flag for you. When the file is absent, Node prints
+file at the project root and launch the server with `--env-file-if-exists`. `npm start`,
+`npm run dev`, `doctor`, `verify`, `test:live`, `verify:evals`, and `call` pass that flag
+for you. When the file is absent, Node prints
 `not found. Continuing without it.` and the launch continues, so a missing `.env` cannot
 break startup. The path resolves against the working directory. Give an absolute path when
 your host launches the server from elsewhere.

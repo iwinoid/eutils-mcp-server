@@ -133,7 +133,8 @@ Database **pubmed** matched **412** records. Showing 3 starting at 0.
 | `NCBI_TOOL`    | `eutils-mcp-server` | 在 NCBI 日志里标识本软件的名字。                                                                     |
 
 把值写进宿主配置的 `env` 块，或者放在项目根目录的 `.env` 文件里、用
-`--env-file-if-exists` 启动。`npm start` 和 `npm run dev` 会自动带上该 flag。文件不存在时
+`--env-file-if-exists` 启动。`npm start`、`dev`、`doctor`、`verify`、`test:live`、
+`verify:evals` 和 `call` 会自动带上该 flag。文件不存在时
 Node 打印 `not found. Continuing without it.`，然后继续启动，所以缺少 `.env` 不会导致启动
 失败。路径按工作目录解析。如果宿主在别处启动服务，请改用绝对路径。
 
