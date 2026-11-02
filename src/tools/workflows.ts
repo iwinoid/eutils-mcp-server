@@ -3,12 +3,13 @@ import * as z from 'zod';
 import { DEFAULT_RETMAX } from '../constants.js';
 import { EUtilsError, type HistoryRef, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
+import { EUTILS_PARAM } from '../services/eutilsParams.js';
+import { resolveFetchFormat, type FetchFormat } from '../services/fetchFormats.js';
 import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
 import { parseXml } from '../services/xml.js';
 import { parseELink, parseEPost, parseESearch } from './parse.js';
 import { ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
-import { defaultRetType } from './records.js';
 
 const SearchThenFetchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed".'),
@@ -23,8 +24,13 @@ const SearchThenFetchInput = z.object({
   rettype: z
     .string()
     .optional()
-    .describe('Record format. Defaults to "abstract" for pubmed, "fasta" for sequences.'),
-  retmode: z.enum(['text', 'xml']).optional().describe('Response encoding. Default "text".'),
+    .describe(
+      'Record format. When omitted, PubMed returns abstracts, sequence databases return FASTA, and other databases use their native default.',
+    ),
+  retmode: z
+    .enum(['text', 'xml', 'asn.1'])
+    .optional()
+    .describe('Response encoding. Omit for the database default.'),
   response_format: ResponseFormatSchema,
 });
 
@@ -44,7 +50,14 @@ const LinkThenFetchInput = z.object({
     .max(500, 'retmax must be 500 or fewer. Page with the returned history handle instead.')
     .optional()
     .describe(`Records to download from the target database (default ${DEFAULT_RETMAX}, max 500).`),
-  rettype: z.string().optional().describe('Record format for the target database.'),
+  rettype: z
+    .string()
+    .optional()
+    .describe('Record format for the target database. When omitted, the database default applies.'),
+  retmode: z
+    .enum(['text', 'xml', 'asn.1'])
+    .optional()
+    .describe('Response encoding for the target database. Omit for the database default.'),
   response_format: ResponseFormatSchema,
 });
 
@@ -76,6 +89,7 @@ const LinkThenFetchOutput = z.looseObject({
     .describe('Records counted in the returned text, when the format allows counting.'),
   linkname: z.string().optional(),
   rettype: z.string().optional(),
+  retmode: z.string().optional(),
   source_history: HistoryRefOutput.optional(),
   history: HistoryRefOutput.optional(),
   text: z.string(),
@@ -139,24 +153,21 @@ async function fetchFromHistory(
   client: EUtilsClient,
   db: string,
   history: HistoryRef,
-  rettype: string,
-  retmode: string,
+  format: FetchFormat,
   retmax: number,
   signal?: AbortSignal,
 ): Promise<string> {
-  const res = await client.request({
-    endpoint: 'efetch.fcgi',
-    params: {
-      db,
-      WebEnv: history.web_env,
-      query_key: history.query_key,
-      rettype,
-      retmode,
-      retstart: 0,
-      retmax,
-    },
-    signal,
-  });
+  const params: QueryParams = {
+    db,
+    WebEnv: history.web_env,
+    query_key: history.query_key,
+    retstart: 0,
+    retmax,
+  };
+  if (format.rettype !== undefined) params[EUTILS_PARAM.retType] = format.rettype;
+  if (format.retmode !== undefined) params[EUTILS_PARAM.retMode] = format.retmode;
+
+  const res = await client.request({ endpoint: 'efetch.fcgi', params, signal });
 
   const body = res.text.trim();
   if (/^error[:\s]/i.test(body)) {
@@ -178,8 +189,7 @@ async function runSearchThenFetch(
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
-  const rettype = defaultRetType(db, input.rettype);
-  const retmode = input.retmode ?? 'text';
+  const format = resolveFetchFormat(db, input.rettype, input.retmode);
 
   const { count, history } = await searchToHistory(client, db, term, signal);
 
@@ -195,15 +205,15 @@ async function runSearchThenFetch(
     return respond({ structured, markdown, format: input.response_format });
   }
 
-  const body = await fetchFromHistory(client, db, history, rettype, retmode, retmax, signal);
+  const body = await fetchFromHistory(client, db, history, format, retmax, signal);
 
   const structured = {
     database: db,
     term,
     total: count,
     retrieved: Math.min(count, retmax),
-    rettype,
-    retmode,
+    rettype: format.rettype ?? 'default',
+    retmode: format.retmode ?? 'default',
     history,
     text: body,
   };
@@ -211,7 +221,7 @@ async function runSearchThenFetch(
   const markdown = [
     `# Search and fetch: \`${term}\``,
     '',
-    `\`${db}\` matched **${count.toLocaleString('en-US')}** records. Downloaded the first ${Math.min(count, retmax)} as ${rettype}/${retmode}.`,
+    `\`${db}\` matched **${count.toLocaleString('en-US')}** records. Downloaded the first ${Math.min(count, retmax)} as ${format.label}.`,
     '',
     body.length > 0 ? fenceUntrusted(body) : 'No record text was returned for this page.',
     '',
@@ -242,7 +252,7 @@ async function runLinkThenFetch(
   const dbfrom = validateDatabase(input.dbfrom);
   const dbto = validateDatabase(input.db);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
-  const rettype = defaultRetType(dbto, input.rettype);
+  const format = resolveFetchFormat(dbto, input.rettype, input.retmode);
 
   const hasTerm = input.term !== undefined && input.term.trim().length > 0;
   const hasUids = input.uids !== undefined && String(input.uids).trim().length > 0;
@@ -302,8 +312,8 @@ async function runLinkThenFetch(
   }
 
   const targetHistory: HistoryRef = target;
-  const body = await fetchFromHistory(client, dbto, targetHistory, rettype, 'text', retmax, signal);
-  const retrieved = rettype === 'fasta' ? countFastaRecords(body) : undefined;
+  const body = await fetchFromHistory(client, dbto, targetHistory, format, retmax, signal);
+  const retrieved = format.rettype === 'fasta' ? countFastaRecords(body) : undefined;
 
   const structured = {
     dbfrom,
@@ -312,7 +322,8 @@ async function runLinkThenFetch(
     requested: retmax,
     ...(retrieved !== undefined ? { retrieved } : {}),
     ...(preferred?.linkname ? { linkname: preferred.linkname } : {}),
-    rettype,
+    rettype: format.rettype ?? 'default',
+    retmode: format.retmode ?? 'default',
     source_history: source.history,
     history: targetHistory,
     text: body,
@@ -321,7 +332,7 @@ async function runLinkThenFetch(
   const markdown = [
     `# Link and fetch: \`${dbfrom}\` → \`${dbto}\``,
     '',
-    `Found links in \`${dbto}\` and downloaded up to ${retmax} record(s) as ${rettype}/text.`,
+    `Found links in \`${dbto}\` and downloaded up to ${retmax} record(s) as ${format.label}.`,
     '',
     body.length > 0 ? fenceUntrusted(body) : `The linked set was empty in \`${dbto}\`.`,
     '',
@@ -361,8 +372,8 @@ Args:
   - db (string): database to search, for example "pubmed".
   - term (string): Entrez query.
   - retmax (number, optional): records to download. Default 20, max 500.
-  - rettype (string, optional): "abstract" (pubmed default), "fasta" (sequence default), ...
-  - retmode ('text' | 'xml', optional): default "text".
+  - rettype (string, optional): explicit record format. Omit for the database default.
+  - retmode ('text' | 'xml' | 'asn.1', optional): response encoding. Omit for the database default.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Returns:
@@ -408,11 +419,13 @@ Args:
   - uids (string[] | string, optional): source UIDs in dbfrom.
   - linkname (string, optional): specific link to follow.
   - retmax (number, optional): target records to download. Default 20, max 500.
-  - rettype (string, optional): record format for the target database.
+  - rettype (string, optional): record format for the target database. Omit for the database default.
+  - retmode ('text' | 'xml' | 'asn.1', optional): response encoding for the target database.
+    Omit for the database default.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Returns:
-  { dbfrom, dbto, source_total, retrieved, rettype, source_history, history, text }
+  { dbfrom, dbto, source_total, retrieved, rettype, retmode, source_history, history, text }
 
 Examples:
   - Use when: "get the protein sequences for these gene IDs" -> dbfrom="gene", db="protein", uids=[...]

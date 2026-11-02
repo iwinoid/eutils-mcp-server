@@ -1,8 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { BATCH_SIZE, DEFAULT_RETMAX, SEQUENCE_DATABASES } from '../constants.js';
+import { BATCH_SIZE, DEFAULT_RETMAX } from '../constants.js';
 import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
+import { EUTILS_PARAM } from '../services/eutilsParams.js';
+import { resolveFetchFormat, resolveSequenceOptions } from '../services/fetchFormats.js';
 import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { chunk, validateRetmax } from '../services/validate.js';
 import { parseESummary, type CompactRecord } from './parse.js';
@@ -49,12 +51,37 @@ const EFetchInput = z.object({
     .string()
     .optional()
     .describe(
-      'Record format. Defaults to "abstract" for pubmed and "fasta" for sequence databases. Other databases need an explicit value, for example "gb" or "docsum".',
+      'Record format. When omitted, PubMed returns abstracts, sequence databases return FASTA, and other databases use their native default.',
     ),
   retmode: z
-    .enum(['text', 'xml'])
+    .enum(['text', 'xml', 'asn.1'])
     .optional()
-    .describe('Response encoding. Default "text", which is what you want for abstracts and FASTA.'),
+    .describe(
+      'Response encoding. When omitted, the database default applies; PubMed and sequence databases are sent as text. asn.1 is textual only; binary ASN.1 for sequence databases is rejected.',
+    ),
+  strand: z
+    .union([z.literal(1), z.literal(2)])
+    .optional()
+    .describe('Sequence strand: 1 for plus, 2 for minus. Only for nuccore and nucleotide.'),
+  seq_start: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('First sequence base to return, 1-based. Requires a sequence database.'),
+  seq_stop: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Last sequence base to return. Requires a sequence database and must not precede seq_start.'),
+  complexity: z
+    .number()
+    .int()
+    .min(0)
+    .max(4)
+    .optional()
+    .describe('Sequence record content: 0 returns the entire blob, 4 the minimal publication set.'),
   retstart: z
     .number()
     .int()
@@ -215,19 +242,6 @@ async function runESummary(
   return respond({ structured, markdown, format: input.response_format });
 }
 
-/** Choose a sensible default record format for a database. */
-export function defaultRetType(db: string, requested: string | undefined): string {
-  if (requested) return requested;
-  if (db === 'pubmed') return 'abstract';
-  if (SEQUENCE_DATABASES.includes(db)) return 'fasta';
-
-  throw new EUtilsError(
-    'validation',
-    `No default record format is defined for database '${db}'.`,
-    'Pass rettype explicitly, for example "gb" for nuccore, "docsum" for a summary-style record, or "xml" for the native record.',
-  );
-}
-
 async function runEFetch(
   client: EUtilsClient,
   input: z.infer<typeof EFetchInput>,
@@ -235,8 +249,13 @@ async function runEFetch(
 ): Promise<ToolTextResult> {
   const source = resolveDbAndSource(input);
   const db = source.db;
-  const rettype = defaultRetType(db, input.rettype);
-  const retmode = input.retmode ?? 'text';
+  const format = resolveFetchFormat(db, input.rettype, input.retmode);
+  const sequence = resolveSequenceOptions(db, {
+    strand: input.strand,
+    seq_start: input.seq_start,
+    seq_stop: input.seq_stop,
+    complexity: input.complexity,
+  });
   const retstart = input.retstart ?? 0;
   const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
   const singleRecord = source.id !== undefined ? source.count === 1 : pageSize === 1;
@@ -244,9 +263,16 @@ async function runEFetch(
   const batches = source.id !== undefined ? chunk(source.id.split(','), BATCH_SIZE) : [null];
 
   const parts: string[] = [];
+  const formatParams: QueryParams = {};
+  if (format.rettype !== undefined) formatParams[EUTILS_PARAM.retType] = format.rettype;
+  if (format.retmode !== undefined) formatParams[EUTILS_PARAM.retMode] = format.retmode;
+  if (sequence.strand !== undefined) formatParams[EUTILS_PARAM.strand] = sequence.strand;
+  if (sequence.seq_start !== undefined) formatParams[EUTILS_PARAM.seqStart] = sequence.seq_start;
+  if (sequence.seq_stop !== undefined) formatParams[EUTILS_PARAM.seqStop] = sequence.seq_stop;
+  if (sequence.complexity !== undefined) formatParams[EUTILS_PARAM.complexity] = sequence.complexity;
 
   for (const batch of batches) {
-    const params: QueryParams = { rettype, retmode };
+    const params: QueryParams = { ...formatParams };
     if (batch === null) {
       applySource(params, source);
       params['retstart'] = retstart;
@@ -275,15 +301,15 @@ async function runEFetch(
 
   const structured = {
     database: db,
-    rettype,
-    retmode,
+    rettype: format.rettype ?? 'default',
+    retmode: format.retmode ?? 'default',
     ...(recordCount !== undefined ? { record_count: recordCount } : {}),
     ...(batches.length > 1 ? { batches: batches.length } : {}),
     text: body,
   };
 
   const markdown = [
-    `# EFetch: \`${db}\` records as ${rettype}/${retmode}`,
+    `# EFetch: \`${db}\` records (${format.label})`,
     '',
     body.length > 0 ? fenceUntrusted(body) : `No records returned. Verify the UIDs exist in \`${db}\`.`,
     '',
@@ -369,17 +395,21 @@ Error Handling:
       title: 'Entrez Full Records',
       description: `Download full records in a chosen format.
 
-Defaults are chosen for readability: PubMed returns plain-text abstracts, and
-sequence databases return FASTA. Returned record text is external data and is
-fenced with an explicit marker.
+Defaults follow the database: PubMed returns plain-text abstracts, sequence
+databases return FASTA, and every other database uses its native default format
+(PMC returns XML). Returned record text is external data and is fenced with an
+explicit marker.
 
 Args:
   - db (string, optional): database, for example "pubmed". Required unless history is given.
   - uids (string[] | string, optional): UIDs or accession.version identifiers.
   - history (object, optional): handle from eutils_esearch, eutils_epost, or eutils_elink.
-  - rettype (string, optional): "abstract" (pubmed default), "fasta" (sequence default),
-    "gb", "docsum", "medline", ...
-  - retmode ('text' | 'xml', optional): default "text".
+  - rettype (string, optional): explicit record format, for example "abstract", "fasta",
+    "gb", "docsum", or "medline". Omit for the database default.
+  - retmode ('text' | 'xml' | 'asn.1', optional): response encoding. Omit for the database default.
+  - strand (1 | 2, optional): sequence strand. Only for nuccore and nucleotide.
+  - seq_start, seq_stop (number, optional): 1-based base range for sequence databases.
+  - complexity (0 | 1 | 2 | 3 | 4, optional): amount of sequence record content.
   - retstart (number, optional): first record index, for history sets.
   - retmax (number, optional): records to return for a history set. Default 20, max 500.
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
@@ -396,7 +426,8 @@ Examples:
   - Don't use when: you only need titles and dates (use eutils_esummary, which is far cheaper)
 
 Error Handling:
-  - Asks for an explicit rettype when the database has no default
+  - Rejects sequence options outside sequence databases, strand outside nuccore/nucleotide,
+    and seq_stop before seq_start
   - Detects an error message returned as record text and reports it as a tool error
   - Refuses retmax above 500; larger sets are batched internally`,
       inputSchema: EFetchInput,
