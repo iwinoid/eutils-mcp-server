@@ -66,10 +66,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Check for known vulnerabilities
-        # `npm audit` exits non-zero on any finding. Report, do not block: a
-        # transitive advisory should not stop a release, but it must be visible.
-        run: npm audit --audit-level=high || true
+      - name: Check for known runtime vulnerabilities
+        # Block on runtime advisories. Dev-only advisories are tracked in the
+        # audit report and do not ship in dist/.
+        run: npm audit --omit=dev --audit-level=high
 
   verify-evals:
     name: Evaluation answers
