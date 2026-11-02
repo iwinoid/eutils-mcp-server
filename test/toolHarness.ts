@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import type { EutilsClient, EutilsResponse } from '../src/services/eutilsClient.js';
+import type { EUtilsClient, EUtilsResponse } from '../src/services/eutilsClient.js';
 import { registerAllTools } from '../src/tools/registry.js';
 
 export interface RecordedRequest {
@@ -14,7 +14,7 @@ export interface ToolHarness {
 }
 
 export function createHarness(
-  router: (req: RecordedRequest) => EutilsResponse | Promise<EutilsResponse>,
+  router: (req: RecordedRequest) => EUtilsResponse | Promise<EUtilsResponse>,
 ): ToolHarness {
   const calls: RecordedRequest[] = [];
   const handlers = new Map<string, (input: any) => Promise<any>>();
@@ -32,7 +32,7 @@ export function createHarness(
       calls.push(recorded);
       return router(recorded);
     },
-  } as unknown as EutilsClient;
+  } as unknown as EUtilsClient;
   registerAllTools(server, client);
   return {
     calls,
@@ -45,10 +45,10 @@ export function createHarness(
   };
 }
 
-export function json(body: unknown, status = 200): EutilsResponse {
+export function json(body: unknown, status = 200): EUtilsResponse {
   return { status, contentType: 'application/json', text: JSON.stringify(body), json: body };
 }
 
-export function text(body: string, status = 200, contentType = 'text/plain'): EutilsResponse {
+export function text(body: string, status = 200, contentType = 'text/plain'): EUtilsResponse {
   return { status, contentType, text: body };
 }

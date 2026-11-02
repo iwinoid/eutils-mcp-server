@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { applySource, resolveDbAndSource, resolveSource, requireTerm } from '../src/tools/common.js';
-import { EutilsError } from '../src/types.js';
+import { EUtilsError } from '../src/types.js';
 
 const GOOD_HISTORY = { db: 'pubmed', web_env: 'MCID_abc123', query_key: '1' };
 
@@ -40,39 +40,39 @@ describe('resolveSource', () => {
   });
 
   it('refuses to combine uids and history', () => {
-    expect(() => resolveSource({ uids: ['1'], history: GOOD_HISTORY }, 'pubmed')).toThrow(EutilsError);
+    expect(() => resolveSource({ uids: ['1'], history: GOOD_HISTORY }, 'pubmed')).toThrow(EUtilsError);
   });
 
   it('refuses an empty request', () => {
-    expect(() => resolveSource({}, 'pubmed')).toThrow(EutilsError);
+    expect(() => resolveSource({}, 'pubmed')).toThrow(EUtilsError);
   });
 
   it('refuses a blank UID list', () => {
-    expect(() => resolveSource({ uids: '  ' }, 'pubmed')).toThrow(EutilsError);
+    expect(() => resolveSource({ uids: '  ' }, 'pubmed')).toThrow(EUtilsError);
   });
 
   // Regression: validateHistory existed and was unit tested, but nothing
   // called it, so a malformed web_env travelled all the way to NCBI.
   it('rejects a web_env containing an ampersand', () => {
     expect(() => resolveSource({ history: { ...GOOD_HISTORY, web_env: 'abc&db=evil' } }, 'pubmed')).toThrow(
-      EutilsError,
+      EUtilsError,
     );
   });
 
   it('rejects a web_env containing whitespace', () => {
     expect(() => resolveSource({ history: { ...GOOD_HISTORY, web_env: 'abc def' } }, 'pubmed')).toThrow(
-      EutilsError,
+      EUtilsError,
     );
   });
 
   it('rejects a non-numeric query_key', () => {
     expect(() => resolveSource({ history: { ...GOOD_HISTORY, query_key: '1 OR 1' } }, 'pubmed')).toThrow(
-      EutilsError,
+      EUtilsError,
     );
   });
 
   it('rejects a UID containing URL metacharacters', () => {
-    expect(() => resolveSource({ uids: ['1&db=evil'] }, 'pubmed')).toThrow(EutilsError);
+    expect(() => resolveSource({ uids: ['1&db=evil'] }, 'pubmed')).toThrow(EUtilsError);
   });
 });
 
@@ -94,13 +94,13 @@ describe('resolveDbAndSource', () => {
       resolveDbAndSource({ db: 'gene', history: GOOD_HISTORY });
       throw new Error('should have thrown');
     } catch (error) {
-      expect(error).toBeInstanceOf(EutilsError);
-      expect((error as EutilsError).message).toContain('does not match');
+      expect(error).toBeInstanceOf(EUtilsError);
+      expect((error as EUtilsError).message).toContain('does not match');
     }
   });
 
   it('rejects a request with no database at all', () => {
-    expect(() => resolveDbAndSource({ uids: ['1'] })).toThrow(EutilsError);
+    expect(() => resolveDbAndSource({ uids: ['1'] })).toThrow(EUtilsError);
   });
 
   it('normalises the database name', () => {
@@ -108,7 +108,7 @@ describe('resolveDbAndSource', () => {
   });
 
   it('rejects an unknown database', () => {
-    expect(() => resolveDbAndSource({ db: 'nope', uids: ['1'] })).toThrow(EutilsError);
+    expect(() => resolveDbAndSource({ db: 'nope', uids: ['1'] })).toThrow(EUtilsError);
   });
 });
 
@@ -139,12 +139,12 @@ describe('requireTerm', () => {
   });
 
   it('rejects a blank term', () => {
-    expect(() => requireTerm('   ')).toThrow(EutilsError);
-    expect(() => requireTerm(undefined)).toThrow(EutilsError);
+    expect(() => requireTerm('   ')).toThrow(EUtilsError);
+    expect(() => requireTerm(undefined)).toThrow(EUtilsError);
   });
 
   it('rejects an over-long term', () => {
-    expect(() => requireTerm('x'.repeat(2001))).toThrow(EutilsError);
+    expect(() => requireTerm('x'.repeat(2001))).toThrow(EUtilsError);
   });
 
   it('accepts a term at the limit', () => {

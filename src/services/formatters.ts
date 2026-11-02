@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { CHARACTER_LIMIT, UNTRUSTED_CLOSE, UNTRUSTED_NOTICE, UNTRUSTED_OPEN } from '../constants.js';
-import { EutilsError, type ResponseFormat } from '../types.js';
+import { EUtilsError, type ResponseFormat } from '../types.js';
 
 /**
  * Structural shape of an MCP tool result.
@@ -228,7 +228,7 @@ export function respond(input: RespondInput): ToolTextResult {
 /** Render a failure as an actionable message the model can act on. */
 export function errorResult(error: unknown): ToolTextResult {
   const text =
-    error instanceof EutilsError
+    error instanceof EUtilsError
       ? error.toToolText()
       : `Error: ${error instanceof Error ? error.message : String(error)}`;
 

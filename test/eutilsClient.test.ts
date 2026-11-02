@@ -1,27 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EutilsClient,
+  EUtilsClient,
   embeddedError,
   isAllowedHost,
   redact,
   type FetchLike,
 } from '../src/services/eutilsClient.js';
 import { TokenBucket } from '../src/services/rateLimiter.js';
-import { EutilsError } from '../src/types.js';
+import { EUtilsError } from '../src/types.js';
 import { FakeClock, jsonResponse, redirectResponse, textResponse, type RecordedCall } from './helpers.js';
 
 /** Client wired to a scripted fetch, with a fake clock so retries are instant. */
 function makeClient(
   handler: (url: string, init: RequestInit, call: number) => Promise<Response>,
   overrides: { apiKey?: string; email?: string; maxRetries?: number } = {},
-): { client: EutilsClient; calls: RecordedCall[] } {
+): { client: EUtilsClient; calls: RecordedCall[] } {
   const clock = new FakeClock();
   const calls: RecordedCall[] = [];
   const fetchImpl: FetchLike = async (url, init) => {
     calls.push({ url, init });
     return handler(url, init, calls.length);
   };
-  const client = new EutilsClient({
+  const client = new EUtilsClient({
     ...overrides,
     fetchImpl,
     clock,
@@ -89,7 +89,7 @@ describe('embeddedError', () => {
   });
 });
 
-describe('EutilsClient request building', () => {
+describe('EUtilsClient request building', () => {
   it('sends tool, email, and api_key on every request', async () => {
     const { client, calls } = makeClient(async () => jsonResponse({ ok: true }), {
       apiKey: 'KEY1',
@@ -169,7 +169,7 @@ describe('EutilsClient request building', () => {
   });
 });
 
-describe('EutilsClient redirects', () => {
+describe('EUtilsClient redirects', () => {
   it('follows the egquery redirect to the second NCBI host', async () => {
     const { client, calls } = makeClient(async (_url, _init, call) =>
       call === 1
@@ -188,14 +188,14 @@ describe('EutilsClient redirects', () => {
     const { client, calls } = makeClient(async () => redirectResponse('https://evil.example.com/steal'));
 
     await expect(client.request({ endpoint: 'egquery.fcgi', params: { term: 'x' } })).rejects.toBeInstanceOf(
-      EutilsError,
+      EUtilsError,
     );
 
     expect(calls).toHaveLength(1);
   });
 });
 
-describe('EutilsClient errors', () => {
+describe('EUtilsClient errors', () => {
   it('treats an HTTP 200 carrying an error body as a failure', async () => {
     const { client } = makeClient(async () =>
       jsonResponse({ error: 'API rate limit exceeded', count: '11' }, 200),
@@ -232,7 +232,7 @@ describe('EutilsClient errors', () => {
 
     await expect(
       client.request({ endpoint: 'esearch.fcgi', params: { db: 'pubmed', term: 'x' } }),
-    ).rejects.toBeInstanceOf(EutilsError);
+    ).rejects.toBeInstanceOf(EUtilsError);
 
     expect(calls).toHaveLength(1);
   });
@@ -289,11 +289,11 @@ describe('EutilsClient errors', () => {
   });
 });
 
-describe('EutilsClient capabilities', () => {
+describe('EUtilsClient capabilities', () => {
   it('reports the rate ceiling implied by the credentials', () => {
     const clock = new FakeClock();
-    const bare = new EutilsClient({ clock, limiter: new TokenBucket(3, 3, clock) });
-    const keyed = new EutilsClient({ apiKey: 'k', clock, limiter: new TokenBucket(10, 10, clock) });
+    const bare = new EUtilsClient({ clock, limiter: new TokenBucket(3, 3, clock) });
+    const keyed = new EUtilsClient({ apiKey: 'k', clock, limiter: new TokenBucket(10, 10, clock) });
 
     expect(bare.ratePerSecond).toBe(3);
     expect(bare.hasApiKey).toBe(false);
@@ -308,7 +308,7 @@ describe('EutilsClient capabilities', () => {
       calls.push(clock.now());
       return calls.length === 1 ? textResponse('retry', 503) : jsonResponse({ ok: true });
     };
-    const client = new EutilsClient({
+    const client = new EUtilsClient({
       fetchImpl,
       clock,
       limiter: new TokenBucket(3, 1, clock),

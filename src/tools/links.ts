@@ -1,10 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { EutilsError } from '../types.js';
-import type { EutilsClient } from '../services/eutilsClient.js';
+import { EUtilsError } from '../types.js';
+import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, respond, type ToolTextResult } from '../services/formatters.js';
 import { validateDatabase } from '../services/validate.js';
-import { parseEcitmatch, parseElink } from './parse.js';
+import { parseECitMatch, parseELink } from './parse.js';
 import {
   applySource,
   READ_ONLY_ANNOTATIONS,
@@ -14,7 +14,7 @@ import {
   UidSourceShape,
 } from './common.js';
 
-const ElinkInput = z.object({
+const ELinkInput = z.object({
   dbfrom: z.string().min(1).describe('Source database holding the input UIDs, for example "pubmed".'),
   db: z
     .string()
@@ -47,7 +47,7 @@ const ElinkInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-const EcitmatchInput = z.object({
+const ECitMatchInput = z.object({
   citations: z
     .array(z.string())
     .min(1)
@@ -57,7 +57,7 @@ const EcitmatchInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-const ElinkOutput = z.looseObject({
+const ELinkOutput = z.looseObject({
   dbfrom: z.string(),
   dbto: z.string().optional(),
   command: z.string(),
@@ -78,7 +78,7 @@ const ElinkOutput = z.looseObject({
     .describe('Present when cmd is neighbor_history.'),
 });
 
-const EcitmatchOutput = z.looseObject({
+const ECitMatchOutput = z.looseObject({
   submitted: z.number(),
   matched: z.number(),
   records: z.array(
@@ -94,13 +94,13 @@ const EcitmatchOutput = z.looseObject({
   ),
 });
 
-async function runElink(client: EutilsClient, input: z.infer<typeof ElinkInput>): Promise<ToolTextResult> {
+async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>): Promise<ToolTextResult> {
   const dbfrom = validateDatabase(input.dbfrom);
   const dbto = input.db ? validateDatabase(input.db) : undefined;
   const source = resolveSource(input, dbfrom);
 
   if (source.db !== dbfrom) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       `history.db '${source.db}' does not match dbfrom '${dbfrom}'.`,
       'Pass a history object whose db equals dbfrom, or omit history and use uids.',
@@ -113,7 +113,7 @@ async function runElink(client: EutilsClient, input: z.infer<typeof ElinkInput>)
   applySource(params, source, { setDb: false });
 
   const res = await client.request({ endpoint: 'elink.fcgi', params });
-  const { groups, histories } = parseElink(res.json);
+  const { groups, histories } = parseELink(res.json);
 
   const totalLinked = groups.reduce((sum, group) => sum + group.count, 0);
 
@@ -164,16 +164,16 @@ async function runElink(client: EutilsClient, input: z.infer<typeof ElinkInput>)
   return respond({ structured, markdown, format: input.response_format });
 }
 
-async function runEcitmatch(
-  client: EutilsClient,
-  input: z.infer<typeof EcitmatchInput>,
+async function runECitMatch(
+  client: EUtilsClient,
+  input: z.infer<typeof ECitMatchInput>,
 ): Promise<ToolTextResult> {
   const cleaned = input.citations
     .map((citation) => citation.trim())
     .filter((citation) => citation.length > 0);
 
   if (cleaned.length === 0) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       'No citation strings were supplied.',
       'Pass at least one string formatted as journal|year|volume|first_page|author|key|.',
@@ -182,7 +182,7 @@ async function runEcitmatch(
 
   const malformed = cleaned.filter((citation) => citation.split('|').length < 6);
   if (malformed.length > 0) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       `Citation string is missing fields: "${malformed[0]}"`,
       'Each citation needs five pipe-separated fields plus a key: journal|year|volume|first_page|author|key|.',
@@ -198,7 +198,7 @@ async function runEcitmatch(
     method: 'POST',
   });
 
-  const records = parseEcitmatch(res.text, cleaned);
+  const records = parseECitMatch(res.text, cleaned);
 
   const matched = records.filter((record) => record.matched);
 
@@ -228,7 +228,7 @@ async function runEcitmatch(
 }
 
 /** Register ELink and ECitMatch. */
-export function registerLinkTools(server: McpServer, client: EutilsClient): void {
+export function registerLinkTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_elink',
     {
@@ -263,13 +263,13 @@ Examples:
 Error Handling:
   - Rejects a history whose db does not match dbfrom
   - Returns an empty result with a hint to list valid link names via eutils_einfo`,
-      inputSchema: ElinkInput,
-      outputSchema: ElinkOutput,
+      inputSchema: ELinkInput,
+      outputSchema: ELinkOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runElink(client, input);
+        return await runELink(client, input);
       } catch (error) {
         return errorResult(error);
       }
@@ -304,13 +304,13 @@ Examples:
 Error Handling:
   - Rejects a citation string with fewer than six pipe-separated fields
   - Reports matched=false per citation when NCBI finds no corresponding record`,
-      inputSchema: EcitmatchInput,
-      outputSchema: EcitmatchOutput,
+      inputSchema: ECitMatchInput,
+      outputSchema: ECitMatchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEcitmatch(client, input);
+        return await runECitMatch(client, input);
       } catch (error) {
         return errorResult(error);
       }

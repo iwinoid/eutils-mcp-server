@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { EutilsError } from '../src/types.js';
+import { EUtilsError } from '../src/types.js';
 import { createHarness, json, text } from './toolHarness.js';
 
 function networkFailure(): never {
-  throw new EutilsError('network', 'EGQuery redirected', 'Retry later.');
+  throw new EUtilsError('network', 'EGQuery redirected', 'Retry later.');
 }
 
 describe('EGQuery fallback accounting', () => {

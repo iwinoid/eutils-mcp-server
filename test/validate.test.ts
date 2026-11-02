@@ -7,7 +7,7 @@ import {
   validateHistory,
   validateRetmax,
 } from '../src/services/validate.js';
-import { EutilsError } from '../src/types.js';
+import { EUtilsError } from '../src/types.js';
 import { ENTREZ_DATABASES } from '../src/constants.js';
 
 describe('validateDatabase', () => {
@@ -22,16 +22,16 @@ describe('validateDatabase', () => {
   });
 
   it('rejects a name that tries to splice an extra parameter', () => {
-    expect(() => validateDatabase('pubmed&api_key=stolen')).toThrow(EutilsError);
+    expect(() => validateDatabase('pubmed&api_key=stolen')).toThrow(EUtilsError);
   });
 
   it('rejects a name containing a path separator', () => {
-    expect(() => validateDatabase('../protein')).toThrow(EutilsError);
+    expect(() => validateDatabase('../protein')).toThrow(EUtilsError);
   });
 
   it('rejects a name containing a fragment or query character', () => {
-    expect(() => validateDatabase('pubmed#1')).toThrow(EutilsError);
-    expect(() => validateDatabase('pubmed?x=1')).toThrow(EutilsError);
+    expect(() => validateDatabase('pubmed#1')).toThrow(EUtilsError);
+    expect(() => validateDatabase('pubmed?x=1')).toThrow(EUtilsError);
   });
 
   it('rejects an unknown but well-formed name, and suggests einfo', () => {
@@ -39,13 +39,13 @@ describe('validateDatabase', () => {
       validateDatabase('notarealdb');
       throw new Error('should have thrown');
     } catch (error) {
-      expect(error).toBeInstanceOf(EutilsError);
-      expect((error as EutilsError).suggestion).toContain('eutils_einfo');
+      expect(error).toBeInstanceOf(EUtilsError);
+      expect((error as EUtilsError).suggestion).toContain('eutils_einfo');
     }
   });
 
   it('rejects an empty name', () => {
-    expect(() => validateDatabase('')).toThrow(EutilsError);
+    expect(() => validateDatabase('')).toThrow(EUtilsError);
   });
 });
 
@@ -74,11 +74,11 @@ describe('parseUids', () => {
   });
 
   it('rejects a UID containing URL metacharacters', () => {
-    expect(() => parseUids('1&db=evil')).toThrow(EutilsError);
+    expect(() => parseUids('1&db=evil')).toThrow(EUtilsError);
   });
 
   it('rejects an empty list', () => {
-    expect(() => parseUids('')).toThrow(EutilsError);
+    expect(() => parseUids('')).toThrow(EUtilsError);
   });
 
   it('accepts a stringified JSON array, as models often send one', () => {
@@ -90,15 +90,15 @@ describe('parseUids', () => {
   });
 
   it('still rejects a hostile element inside a stringified array', () => {
-    expect(() => parseUids('["1&db=evil"]')).toThrow(EutilsError);
+    expect(() => parseUids('["1&db=evil"]')).toThrow(EUtilsError);
   });
 
   it('rejects an empty stringified array as an empty list', () => {
-    expect(() => parseUids('[]')).toThrow(EutilsError);
+    expect(() => parseUids('[]')).toThrow(EUtilsError);
   });
 
   it('treats a non-JSON bracket string as an ordinary invalid list', () => {
-    expect(() => parseUids('[abc')).toThrow(EutilsError);
+    expect(() => parseUids('[abc')).toThrow(EUtilsError);
   });
 });
 
@@ -112,7 +112,7 @@ describe('validateRetmax', () => {
   });
 
   it('refuses a value above the cap instead of clamping', () => {
-    expect(() => validateRetmax(501, 'esummary')).toThrow(EutilsError);
+    expect(() => validateRetmax(501, 'esummary')).toThrow(EUtilsError);
   });
 
   it('points at the History server in the suggestion', () => {
@@ -120,12 +120,12 @@ describe('validateRetmax', () => {
       validateRetmax(20_000, 'esearch');
       throw new Error('should have thrown');
     } catch (error) {
-      expect((error as EutilsError).suggestion).toContain('usehistory');
+      expect((error as EUtilsError).suggestion).toContain('usehistory');
     }
   });
 
   it('rejects a negative value', () => {
-    expect(() => validateRetmax(-1, 'esearch')).toThrow(EutilsError);
+    expect(() => validateRetmax(-1, 'esearch')).toThrow(EUtilsError);
   });
 
   it('allows zero, which fetches only the count', () => {
@@ -155,18 +155,18 @@ describe('validateHistory', () => {
   });
 
   it('rejects an empty web_env', () => {
-    expect(() => validateHistory({ ...good, web_env: '' })).toThrow(EutilsError);
+    expect(() => validateHistory({ ...good, web_env: '' })).toThrow(EUtilsError);
   });
 
   it('rejects a web_env containing an ampersand', () => {
-    expect(() => validateHistory({ ...good, web_env: 'abc&db=evil' })).toThrow(EutilsError);
+    expect(() => validateHistory({ ...good, web_env: 'abc&db=evil' })).toThrow(EUtilsError);
   });
 
   it('rejects a non-numeric query_key', () => {
-    expect(() => validateHistory({ ...good, query_key: '1 OR 1' })).toThrow(EutilsError);
+    expect(() => validateHistory({ ...good, query_key: '1 OR 1' })).toThrow(EUtilsError);
   });
 
   it('rejects an unknown database', () => {
-    expect(() => validateHistory({ ...good, db: 'evil' })).toThrow(EutilsError);
+    expect(() => validateHistory({ ...good, db: 'evil' })).toThrow(EUtilsError);
   });
 });

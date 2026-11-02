@@ -1,14 +1,14 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { DEFAULT_RETMAX } from '../constants.js';
-import { EutilsError, type HistoryRef } from '../types.js';
-import type { EutilsClient } from '../services/eutilsClient.js';
+import { EUtilsError, type HistoryRef } from '../types.js';
+import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
 import { parseXml } from '../services/xml.js';
-import { parseElink, parseEpost, parseEsearch } from './parse.js';
+import { parseELink, parseEPost, parseESearch } from './parse.js';
 import { READ_ONLY_ANNOTATIONS, ResponseFormatSchema, requireTerm } from './common.js';
-import { defaultRettype } from './records.js';
+import { defaultRetType } from './records.js';
 
 const SearchThenFetchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed".'),
@@ -78,7 +78,7 @@ const LinkThenFetchOutput = z.looseObject({
 
 /** ESearch for a query, storing the set on the History server. */
 async function searchToHistory(
-  client: EutilsClient,
+  client: EUtilsClient,
   db: string,
   term: string,
 ): Promise<{ count: number; history: HistoryRef }> {
@@ -87,10 +87,10 @@ async function searchToHistory(
     params: { db, term, retmax: 0, usehistory: 'y', retmode: 'json' },
   });
 
-  const { total: count, history } = parseEsearch(res.json, db, true);
+  const { total: count, history } = parseESearch(res.json, db, true);
 
   if (!history) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'upstream',
       'ESearch did not return a History handle, so the pipeline cannot continue.',
       'Retry. If it persists, run eutils_esearch on its own to inspect the response.',
@@ -101,14 +101,14 @@ async function searchToHistory(
 }
 
 /** Upload explicit UIDs to the History server. */
-async function postToHistory(client: EutilsClient, db: string, uids: string[]): Promise<HistoryRef> {
+async function postToHistory(client: EUtilsClient, db: string, uids: string[]): Promise<HistoryRef> {
   const res = await client.request({ endpoint: 'epost.fcgi', params: { db, id: uids.join(',') } });
 
   const parsed = parseXml(res.text);
-  const history = parsed === undefined ? undefined : parseEpost(parsed, db);
+  const history = parsed === undefined ? undefined : parseEPost(parsed, db);
 
   if (!history) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'upstream',
       'EPost did not return a usable History handle.',
       'Verify the UIDs exist in the source database, then retry.',
@@ -120,7 +120,7 @@ async function postToHistory(client: EutilsClient, db: string, uids: string[]): 
 
 /** Download a page of records from a History set. */
 async function fetchFromHistory(
-  client: EutilsClient,
+  client: EUtilsClient,
   db: string,
   history: HistoryRef,
   rettype: string,
@@ -142,7 +142,7 @@ async function fetchFromHistory(
 
   const body = res.text.trim();
   if (/^error[:\s]/i.test(body)) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       `EFetch reported: ${body.slice(0, 300)}`,
       'Check that the UIDs exist in this database and that rettype is valid for it.',
@@ -153,13 +153,13 @@ async function fetchFromHistory(
 }
 
 async function runSearchThenFetch(
-  client: EutilsClient,
+  client: EUtilsClient,
   input: z.infer<typeof SearchThenFetchInput>,
 ): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
-  const rettype = defaultRettype(db, input.rettype);
+  const rettype = defaultRetType(db, input.rettype);
   const retmode = input.retmode ?? 'text';
 
   const { count, history } = await searchToHistory(client, db, term);
@@ -211,19 +211,19 @@ async function runSearchThenFetch(
 }
 
 async function runLinkThenFetch(
-  client: EutilsClient,
+  client: EUtilsClient,
   input: z.infer<typeof LinkThenFetchInput>,
 ): Promise<ToolTextResult> {
   const dbfrom = validateDatabase(input.dbfrom);
   const dbto = validateDatabase(input.db);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
-  const rettype = defaultRettype(dbto, input.rettype);
+  const rettype = defaultRetType(dbto, input.rettype);
 
   const hasTerm = input.term !== undefined && input.term.trim().length > 0;
   const hasUids = input.uids !== undefined && String(input.uids).trim().length > 0;
 
   if (hasTerm === hasUids) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       hasTerm ? 'Both term and uids were supplied.' : 'Neither term nor uids was supplied.',
       'Pass exactly one: term to search the source database, or uids to select source records directly.',
@@ -245,7 +245,7 @@ async function runLinkThenFetch(
   if (input.linkname) linkParams['linkname'] = input.linkname;
 
   const linkRes = await client.request({ endpoint: 'elink.fcgi', params: linkParams });
-  const { histories } = parseElink(linkRes.json);
+  const { histories } = parseELink(linkRes.json);
 
   const target = histories.find((candidate) => candidate.db === dbto) ?? histories[0];
 
@@ -309,7 +309,7 @@ async function runLinkThenFetch(
 }
 
 /** Register the two convenience pipelines. */
-export function registerWorkflowTools(server: McpServer, client: EutilsClient): void {
+export function registerWorkflowTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_search_then_fetch',
     {

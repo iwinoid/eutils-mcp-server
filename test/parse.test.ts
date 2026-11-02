@@ -12,16 +12,16 @@ import { describe, expect, it } from 'vitest';
 import {
   compactGeneric,
   compactPubmed,
-  parseEcitmatch,
-  parseEgquery,
-  parseElink,
-  parseEpost,
-  parseEsearch,
-  parseEsummary,
-  parseEspell,
+  parseECitMatch,
+  parseEGQuery,
+  parseELink,
+  parseEPost,
+  parseESearch,
+  parseESummary,
+  parseESpell,
   requireSection,
 } from '../src/tools/parse.js';
-import { EutilsError } from '../src/types.js';
+import { EUtilsError } from '../src/types.js';
 import { parseXml } from '../src/services/xml.js';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -34,19 +34,19 @@ describe('requireSection', () => {
   });
 
   it('throws a parse error when the section is missing', () => {
-    expect(() => requireSection({ a: 1 }, 'missing', 'X')).toThrow(EutilsError);
+    expect(() => requireSection({ a: 1 }, 'missing', 'X')).toThrow(EUtilsError);
   });
 
   it('throws a parse error for a non-object body', () => {
-    expect(() => requireSection('<xml/>', 'a', 'X')).toThrow(EutilsError);
+    expect(() => requireSection('<xml/>', 'a', 'X')).toThrow(EUtilsError);
   });
 });
 
-describe('parseEsearch', () => {
+describe('parseESearch', () => {
   const json = loadJson('esearch.json');
 
   it('reads the count, UIDs, and query translation', () => {
-    const parsed = parseEsearch(json, 'pubmed', true);
+    const parsed = parseESearch(json, 'pubmed', true);
     expect(parsed.total).toBeGreaterThan(0);
     expect(parsed.uids).toHaveLength(3);
     expect(parsed.uids.every((uid) => /^\d+$/.test(uid))).toBe(true);
@@ -54,27 +54,27 @@ describe('parseEsearch', () => {
   });
 
   it('expands term translations', () => {
-    const parsed = parseEsearch(json, 'pubmed', false);
+    const parsed = parseESearch(json, 'pubmed', false);
     expect(parsed.translations.length).toBeGreaterThan(0);
     expect(parsed.translations[0]!.from).toBeTruthy();
     expect(parsed.translations[0]!.to).toBeTruthy();
   });
 
   it('returns a history handle when asked', () => {
-    const parsed = parseEsearch(json, 'pubmed', true);
+    const parsed = parseESearch(json, 'pubmed', true);
     expect(parsed.history?.db).toBe('pubmed');
     expect(parsed.history?.web_env).toMatch(/^MCID_/);
     expect(parsed.history?.query_key).toBe('1');
   });
 
   it('omits the history handle when not asked', () => {
-    expect(parseEsearch(json, 'pubmed', false).history).toBeUndefined();
+    expect(parseESearch(json, 'pubmed', false).history).toBeUndefined();
   });
 });
 
-describe('parseEsummary', () => {
+describe('parseESummary', () => {
   it('compacts a PubMed record', () => {
-    const { uids, records } = parseEsummary(loadJson('esummary-pubmed.json'), 'pubmed');
+    const { uids, records } = parseESummary(loadJson('esummary-pubmed.json'), 'pubmed');
     expect(uids).toHaveLength(2);
 
     const record = records.find((r) => r['uid'] === '31452104')!;
@@ -87,13 +87,13 @@ describe('parseEsummary', () => {
   });
 
   it('does not leak verbose PubMed structures', () => {
-    const { records } = parseEsummary(loadJson('esummary-pubmed.json'), 'pubmed');
+    const { records } = parseESummary(loadJson('esummary-pubmed.json'), 'pubmed');
     expect(records[0]).not.toHaveProperty('references');
     expect(records[0]).not.toHaveProperty('articleids');
   });
 
   it('compacts a non-PubMed record with generic fields', () => {
-    const { uids, records } = parseEsummary(loadJson('esummary-protein.json'), 'protein');
+    const { uids, records } = parseESummary(loadJson('esummary-protein.json'), 'protein');
     expect(uids).toHaveLength(1);
     expect(records[0]!['uid']).toBe('15718680');
     expect(String(records[0]!['title'])).toContain('ITK');
@@ -101,7 +101,7 @@ describe('parseEsummary', () => {
   });
 
   it('tolerates a UID with no matching record', () => {
-    const { records } = parseEsummary({ result: { uids: ['999'] } }, 'pubmed');
+    const { records } = parseESummary({ result: { uids: ['999'] } }, 'pubmed');
     expect(records).toEqual([{ uid: '999' }]);
   });
 });
@@ -140,9 +140,9 @@ describe('compactGeneric', () => {
   });
 });
 
-describe('parseElink', () => {
+describe('parseELink', () => {
   it('reads link groups from the linksetdbs form', () => {
-    const parsed = parseElink(loadJson('elink-links.json'));
+    const parsed = parseELink(loadJson('elink-links.json'));
     expect(parsed.groups).toHaveLength(1);
     expect(parsed.groups[0]!.dbto).toBe('pmc');
     expect(parsed.groups[0]!.linkname).toBe('pubmed_pmc_refs');
@@ -151,7 +151,7 @@ describe('parseElink', () => {
   });
 
   it('reads history handles from the linksetdbhistories form', () => {
-    const parsed = parseElink(loadJson('elink-history.json'));
+    const parsed = parseELink(loadJson('elink-history.json'));
     expect(parsed.histories).toHaveLength(1);
     expect(parsed.histories[0]!.db).toBe('pmc');
     expect(parsed.histories[0]!.web_env).toMatch(/^MCID_/);
@@ -162,15 +162,15 @@ describe('parseElink', () => {
     // Reading `json.linksets.linksets` yields zero groups with no error, which
     // is how this bug shipped once.
     expect(Array.isArray((loadJson('elink-links.json') as Record<string, unknown>)['linksets'])).toBe(true);
-    expect(parseElink(loadJson('elink-links.json')).groups.length).toBeGreaterThan(0);
+    expect(parseELink(loadJson('elink-links.json')).groups.length).toBeGreaterThan(0);
   });
 
   it('throws a parse error when linksets is absent', () => {
-    expect(() => parseElink({ header: {} })).toThrow(EutilsError);
+    expect(() => parseELink({ header: {} })).toThrow(EUtilsError);
   });
 });
 
-describe('parseEgquery', () => {
+describe('parseEGQuery', () => {
   const xml = `<?xml version="1.0"?>
 <eGQueryResult>
   <ResultItem><DbName>pubmed</DbName><MenuName>PubMed</MenuName><Count>42</Count><Status>Ok</Status></ResultItem>
@@ -178,19 +178,19 @@ describe('parseEgquery', () => {
 </eGQueryResult>`;
 
   it('reads one entry per database', () => {
-    const entries = parseEgquery(parseXml(xml));
+    const entries = parseEGQuery(parseXml(xml));
     expect(entries).toHaveLength(2);
     expect(entries[0]).toEqual({ db: 'pubmed', menu: 'PubMed', count: 42, status: 'Ok' });
   });
 
   it('returns an empty list for a body without results', () => {
-    expect(parseEgquery(parseXml('<eGQueryResult/>'))).toEqual([]);
+    expect(parseEGQuery(parseXml('<eGQueryResult/>'))).toEqual([]);
   });
 });
 
-describe('parseEspell', () => {
+describe('parseESpell', () => {
   it('reads the corrected query from the captured response', () => {
-    const result = parseEspell(parseXml(load('espell.xml')), 'breast cancr');
+    const result = parseESpell(parseXml(load('espell.xml')), 'breast cancr');
     expect(result.query).toBe('breast cancr');
     expect(result.corrected).toBe('breast cancer');
     expect(result.changed).toBe(true);
@@ -198,31 +198,31 @@ describe('parseEspell', () => {
 
   it('reports no change when NCBI offers no correction', () => {
     const xml = '<eSpellResult><Query>cancer</Query><CorrectedQuery></CorrectedQuery></eSpellResult>';
-    expect(parseEspell(parseXml(xml), 'cancer').changed).toBe(false);
+    expect(parseESpell(parseXml(xml), 'cancer').changed).toBe(false);
   });
 
   it('falls back to the supplied term when NCBI echoes no query', () => {
-    expect(parseEspell(parseXml('<eSpellResult/>'), 'fallback').query).toBe('fallback');
+    expect(parseESpell(parseXml('<eSpellResult/>'), 'fallback').query).toBe('fallback');
   });
 });
 
-describe('parseEpost', () => {
+describe('parseEPost', () => {
   it('builds a history reference from the captured response', () => {
-    const history = parseEpost(parseXml(load('epost.xml')), 'pubmed');
+    const history = parseEPost(parseXml(load('epost.xml')), 'pubmed');
     expect(history?.db).toBe('pubmed');
     expect(history?.web_env).toBeTruthy();
     expect(history?.query_key).toBeTruthy();
   });
 
   it('returns undefined for a body without a web environment', () => {
-    expect(parseEpost(parseXml('<ePostResult/>'), 'pubmed')).toBeUndefined();
+    expect(parseEPost(parseXml('<ePostResult/>'), 'pubmed')).toBeUndefined();
   });
 });
 
-describe('parseEcitmatch', () => {
+describe('parseECitMatch', () => {
   it('reads the PMID appended as the seventh field', () => {
     const body = 'science|1987|235|182|palmenberg ac|Art2|3026048';
-    const [record] = parseEcitmatch(body, ['science|1987|235|182|palmenberg ac|Art2|']);
+    const [record] = parseECitMatch(body, ['science|1987|235|182|palmenberg ac|Art2|']);
     expect(record!.pmid).toBe('3026048');
     expect(record!.matched).toBe(true);
     expect(record!.journal).toBe('science');
@@ -231,7 +231,7 @@ describe('parseEcitmatch', () => {
 
   it('marks an unmatched citation', () => {
     const body = 'fake journal|1900|1|1|nobody|X1|';
-    const [record] = parseEcitmatch(body, ['fake journal|1900|1|1|nobody|X1|']);
+    const [record] = parseECitMatch(body, ['fake journal|1900|1|1|nobody|X1|']);
     expect(record!.matched).toBe(false);
     expect(record!.pmid).toBe('');
   });
@@ -242,7 +242,7 @@ describe('parseEcitmatch', () => {
       'proc natl acad sci u s a|1991|88|3248|mann bj|Art1|2014248',
       'science|1987|235|182|palmenberg ac|Art2|3026048',
     ].join('\n');
-    const records = parseEcitmatch(body, ['a', 'b']);
+    const records = parseECitMatch(body, ['a', 'b']);
     expect(records).toHaveLength(2);
     expect(records[0]!.pmid).toBe('2014248');
     expect(records[1]!.pmid).toBe('3026048');
@@ -250,13 +250,13 @@ describe('parseEcitmatch', () => {
 
   it('also tolerates carriage returns and CRLF', () => {
     const two = 'a|1|2|3|p|K1|11111111\rb|1|2|3|p|K2|22222222';
-    expect(parseEcitmatch(two, ['x', 'y'])).toHaveLength(2);
+    expect(parseECitMatch(two, ['x', 'y'])).toHaveLength(2);
 
     const crlf = 'a|1|2|3|p|K1|11111111\r\nb|1|2|3|p|K2|22222222';
-    expect(parseEcitmatch(crlf, ['x', 'y'])).toHaveLength(2);
+    expect(parseECitMatch(crlf, ['x', 'y'])).toHaveLength(2);
   });
 
   it('ignores empty lines', () => {
-    expect(parseEcitmatch('science|1987|235|182|p|K|3026048\n\n', ['x'])).toHaveLength(1);
+    expect(parseECitMatch('science|1987|235|182|p|K|3026048\n\n', ['x'])).toHaveLength(1);
   });
 });

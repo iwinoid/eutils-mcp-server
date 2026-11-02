@@ -24,7 +24,7 @@ export interface PageInfo {
 export type ResponseFormat = 'markdown' | 'json';
 
 /** Failure categories that map to different advice for the model. */
-export type EutilsErrorKind =
+export type EUtilsErrorKind =
   | 'validation'
   | 'rate_limit'
   | 'not_found'
@@ -38,15 +38,15 @@ export type EutilsErrorKind =
  * An error carrying a machine-readable kind plus a suggested next step.
  *
  * `message` is always safe to show: the API key is redacted before any
- * EutilsError is constructed.
+ * EUtilsError is constructed.
  */
-export class EutilsError extends Error {
-  readonly kind: EutilsErrorKind;
+export class EUtilsError extends Error {
+  readonly kind: EUtilsErrorKind;
   readonly suggestion: string;
 
-  constructor(kind: EutilsErrorKind, message: string, suggestion: string) {
+  constructor(kind: EUtilsErrorKind, message: string, suggestion: string) {
     super(message);
-    this.name = 'EutilsError';
+    this.name = 'EUtilsError';
     this.kind = kind;
     this.suggestion = suggestion;
   }

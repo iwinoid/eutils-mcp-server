@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import type { EutilsClient } from '../services/eutilsClient.js';
+import type { EUtilsClient } from '../services/eutilsClient.js';
 import { registerDiscoveryTools } from './discovery.js';
 import { registerLinkTools } from './links.js';
 import { registerRecordTools } from './records.js';
@@ -12,7 +12,7 @@ import { registerWorkflowTools } from './workflows.js';
  * Each registrar owns one domain and receives the shared client, so every
  * outbound request passes through the same rate limiter and credential guard.
  */
-export function registerAllTools(server: McpServer, client: EutilsClient): void {
+export function registerAllTools(server: McpServer, client: EUtilsClient): void {
   registerDiscoveryTools(server, client);
   registerSearchTools(server, client);
   registerRecordTools(server, client);

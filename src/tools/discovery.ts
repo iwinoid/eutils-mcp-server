@@ -1,14 +1,14 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { EutilsError } from '../types.js';
-import type { EutilsClient } from '../services/eutilsClient.js';
+import { EUtilsError } from '../types.js';
+import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, respond, type ToolTextResult } from '../services/formatters.js';
 import { validateDatabase } from '../services/validate.js';
 import { asArray, parseXml, textOf } from '../services/xml.js';
-import { parseEgquery, parseEspell, requireSection, type EgqueryEntry } from './parse.js';
+import { parseEGQuery, parseESpell, requireSection, type EGQueryEntry } from './parse.js';
 import { READ_ONLY_ANNOTATIONS, ResponseFormatSchema, requireTerm } from './common.js';
 
-const EinfoInput = z.object({
+const EInfoInput = z.object({
   db: z
     .string()
     .optional()
@@ -16,12 +16,12 @@ const EinfoInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-const EgqueryInput = z.object({
+const EGQueryInput = z.object({
   term: z.string().min(1).describe('Entrez text query to run against every database at once.'),
   response_format: ResponseFormatSchema,
 });
 
-const EspellInput = z.object({
+const ESpellInput = z.object({
   db: z.string().min(1).describe('Entrez database to check the spelling against, for example "pubmed".'),
   term: z.string().min(1).describe('Query whose spelling should be checked, for example "breast cancr".'),
   response_format: ResponseFormatSchema,
@@ -33,7 +33,7 @@ const EspellInput = z.object({
  * Loose objects: they name the fields a caller can rely on and permit the
  * rest. A strict schema would break clients whenever NCBI adds a field.
  */
-const EinfoOutput = z.looseObject({
+const EInfoOutput = z.looseObject({
   count: z.number().optional().describe('Number of Entrez databases, when no db was given.'),
   databases: z.array(z.string()).optional().describe('Database names, when no db was given.'),
   database: z.string().optional().describe('Database name, when db was given.'),
@@ -44,7 +44,7 @@ const EinfoOutput = z.looseObject({
   links: z.array(z.looseObject({ name: z.string(), dbto: z.string() })).optional(),
 });
 
-const EgqueryOutput = z.looseObject({
+const EGQueryOutput = z.looseObject({
   term: z.string(),
   databases_searched: z.number(),
   databases_with_hits: z.number(),
@@ -58,7 +58,7 @@ const EgqueryOutput = z.looseObject({
   degraded_reason: z.string().optional(),
 });
 
-const EspellOutput = z.looseObject({
+const ESpellOutput = z.looseObject({
   database: z.string(),
   query: z.string(),
   corrected_query: z.string(),
@@ -95,7 +95,7 @@ function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
   }));
 }
 
-async function runEinfo(client: EutilsClient, input: z.infer<typeof EinfoInput>): Promise<ToolTextResult> {
+async function runEInfo(client: EUtilsClient, input: z.infer<typeof EInfoInput>): Promise<ToolTextResult> {
   const params: Record<string, unknown> = { retmode: 'json' };
   if (input.db) params['db'] = validateDatabase(input.db);
 
@@ -167,32 +167,32 @@ async function runEinfo(client: EutilsClient, input: z.infer<typeof EinfoInput>)
   return respond({ structured, markdown, format: input.response_format });
 }
 
-async function runEgquery(
-  client: EutilsClient,
-  input: z.infer<typeof EgqueryInput>,
+async function runEGQuery(
+  client: EUtilsClient,
+  input: z.infer<typeof EGQueryInput>,
 ): Promise<ToolTextResult> {
   const term = requireTerm(input.term);
 
-  let entries: EgqueryEntry[] = [];
+  let entries: EGQueryEntry[] = [];
   let failures: { db: string; error: string }[] = [];
   let degradedReason: string | undefined;
   let degradedHint: string | undefined;
 
   try {
-    entries = await queryEgquery(client, term);
+    entries = await queryEGQuery(client, term);
   } catch (error) {
     // EGQuery answers unauthenticated requests with a 301 to an NCBI-internal
     // service-mesh host that is not published in public DNS. Timeouts and empty
     // bodies are equally unusable, so they degrade too. Validation and rate
     // limit errors propagate: retrying 12 databases would not help.
     const degradable =
-      error instanceof EutilsError &&
+      error instanceof EUtilsError &&
       (error.kind === 'network' ||
         error.kind === 'timeout' ||
         error.kind === 'parse' ||
         (error.kind === 'upstream' && /HTTP 5\d\d/.test(error.message)));
     if (!degradable) throw error;
-    degradedReason = (error as EutilsError).message;
+    degradedReason = (error as EUtilsError).message;
     degradedHint = client.hasApiKey
       ? 'EGQuery still failed with a valid API key, so this is confirmed as an NCBI-side problem, not a credentials one.'
       : 'EGQuery failed before any credential check, so an API key would not help; this is an NCBI-side problem.';
@@ -200,7 +200,7 @@ async function runEgquery(
     entries = fallback.entries;
     failures = fallback.failures;
     if (entries.length === 0) {
-      throw new EutilsError(
+      throw new EUtilsError(
         'upstream',
         'EGQuery fallback failed for every database: ' +
           failures.map((failure) => failure.db + ' (' + failure.error + ')').join('; '),
@@ -263,21 +263,21 @@ async function runEgquery(
 }
 
 /** Ask EGQuery directly. Returns one entry per Entrez database. */
-async function queryEgquery(client: EutilsClient, term: string): Promise<EgqueryEntry[]> {
+async function queryEGQuery(client: EUtilsClient, term: string): Promise<EGQueryEntry[]> {
   const res = await client.request({ endpoint: 'egquery.fcgi', params: { term } });
 
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'parse',
       'EGQuery returned a body that could not be parsed as XML.',
       'Retry. If it persists, the endpoint may be under maintenance.',
     );
   }
 
-  const entries = parseEgquery(parsed);
+  const entries = parseEGQuery(parsed);
   if (entries.length === 0) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'parse',
       'EGQuery returned a valid XML body with no database results.',
       'Retry. If it persists, NCBI may be returning an empty result set.',
@@ -307,18 +307,18 @@ const EGQUERY_FALLBACK_DATABASES = [
   'gds',
 ] as const;
 
-export interface EgqueryFailure {
+export interface EGQueryFailure {
   db: string;
   error: string;
 }
 
 /** Count matches per database with ESearch, as a stand-in for EGQuery. */
 async function egqueryFallback(
-  client: EutilsClient,
+  client: EUtilsClient,
   term: string,
-): Promise<{ entries: EgqueryEntry[]; failures: EgqueryFailure[] }> {
-  const entries: EgqueryEntry[] = [];
-  const failures: EgqueryFailure[] = [];
+): Promise<{ entries: EGQueryEntry[]; failures: EGQueryFailure[] }> {
+  const entries: EGQueryEntry[] = [];
+  const failures: EGQueryFailure[] = [];
 
   for (const db of EGQUERY_FALLBACK_DATABASES) {
     try {
@@ -336,7 +336,7 @@ async function egqueryFallback(
   return { entries, failures };
 }
 
-async function runEspell(client: EutilsClient, input: z.infer<typeof EspellInput>): Promise<ToolTextResult> {
+async function runESpell(client: EUtilsClient, input: z.infer<typeof ESpellInput>): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
 
@@ -344,14 +344,14 @@ async function runEspell(client: EutilsClient, input: z.infer<typeof EspellInput
 
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'parse',
       'ESpell returned a body that could not be parsed as XML.',
       'Retry. If it persists, the endpoint may be under maintenance.',
     );
   }
 
-  const { query, corrected, changed } = parseEspell(parsed, term);
+  const { query, corrected, changed } = parseESpell(parsed, term);
 
   const structured = {
     database: db,
@@ -374,7 +374,7 @@ async function runEspell(client: EutilsClient, input: z.infer<typeof EspellInput
 }
 
 /** Register EInfo, EGQuery, and ESpell. */
-export function registerDiscoveryTools(server: McpServer, client: EutilsClient): void {
+export function registerDiscoveryTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_einfo',
     {
@@ -404,13 +404,13 @@ Examples:
 Error Handling:
   - Rejects a database name that is not one of the known Entrez databases, and lists samples
   - Returns a parse error if NCBI changes the response shape`,
-      inputSchema: EinfoInput,
-      outputSchema: EinfoOutput,
+      inputSchema: EInfoInput,
+      outputSchema: EInfoOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEinfo(client, input);
+        return await runEInfo(client, input);
       } catch (error) {
         return errorResult(error);
       }
@@ -446,13 +446,13 @@ Error Handling:
     unreachable this tool falls back to per-database ESearch counts over 12 commonly used
     databases, and says so in a "degraded" field. Counts are then a subset, not all 38.
   - The fallback triggers only on a network failure, never on a validation error.`,
-      inputSchema: EgqueryInput,
-      outputSchema: EgqueryOutput,
+      inputSchema: EGQueryInput,
+      outputSchema: EGQueryOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEgquery(client, input);
+        return await runEGQuery(client, input);
       } catch (error) {
         return errorResult(error);
       }
@@ -480,13 +480,13 @@ Examples:
 
 Error Handling:
   - Reports changed=false when NCBI has no correction, rather than an error`,
-      inputSchema: EspellInput,
-      outputSchema: EspellOutput,
+      inputSchema: ESpellInput,
+      outputSchema: ESpellOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEspell(client, input);
+        return await runESpell(client, input);
       } catch (error) {
         return errorResult(error);
       }

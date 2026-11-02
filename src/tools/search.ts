@@ -1,15 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { DEFAULT_RETMAX } from '../constants.js';
-import { EutilsError } from '../types.js';
-import type { EutilsClient } from '../services/eutilsClient.js';
+import { EUtilsError } from '../types.js';
+import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, pageInfo, respond, type ToolTextResult } from '../services/formatters.js';
 import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
 import { parseXml } from '../services/xml.js';
-import { parseEpost, parseEsearch } from './parse.js';
+import { parseEPost, parseESearch } from './parse.js';
 import { ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
 
-const EsearchInput = z.object({
+const ESearchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed" or "protein".'),
   term: z
     .string()
@@ -51,7 +51,7 @@ const EsearchInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-const EpostInput = z.object({
+const EPostInput = z.object({
   db: z.string().min(1).describe('Entrez database the UIDs belong to, for example "pubmed".'),
   uids: z
     .union([z.string(), z.array(z.string())])
@@ -65,7 +65,7 @@ const HistoryOutput = z.looseObject({
   query_key: z.string().describe('Query key inside that web environment.'),
 });
 
-const EsearchOutput = z.looseObject({
+const ESearchOutput = z.looseObject({
   database: z.string(),
   term: z.string(),
   total: z.number().describe('Records matching the whole query, not just this page.'),
@@ -79,15 +79,15 @@ const EsearchOutput = z.looseObject({
   history: HistoryOutput.optional().describe('Present when usehistory is true.'),
 });
 
-const EpostOutput = z.looseObject({
+const EPostOutput = z.looseObject({
   database: z.string(),
   uploaded: z.number(),
   history: HistoryOutput,
 });
 
-async function runEsearch(
-  client: EutilsClient,
-  input: z.infer<typeof EsearchInput>,
+async function runESearch(
+  client: EUtilsClient,
+  input: z.infer<typeof ESearchInput>,
 ): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
@@ -103,7 +103,7 @@ async function runEsearch(
   if (useHistory) params['usehistory'] = 'y';
 
   const res = await client.request({ endpoint: 'esearch.fcgi', params });
-  const { total, uids, queryTranslation, translations, history } = parseEsearch(res.json, db, useHistory);
+  const { total, uids, queryTranslation, translations, history } = parseESearch(res.json, db, useHistory);
 
   const page = pageInfo(total, uids.length, retstart);
   const structured = {
@@ -161,7 +161,7 @@ async function runEsearch(
   return respond({ structured, markdown, format: input.response_format });
 }
 
-async function runEpost(client: EutilsClient, input: z.infer<typeof EpostInput>): Promise<ToolTextResult> {
+async function runEPost(client: EUtilsClient, input: z.infer<typeof EPostInput>): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const uids = parseUids(input.uids);
 
@@ -174,17 +174,17 @@ async function runEpost(client: EutilsClient, input: z.infer<typeof EpostInput>)
 
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'parse',
       'EPost returned a body that could not be parsed as XML.',
       'Retry. If it persists, validate the UIDs with eutils_esearch first.',
     );
   }
 
-  const history = parseEpost(parsed, db);
+  const history = parseEPost(parsed, db);
 
   if (!history) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'upstream',
       'EPost did not return a usable History handle.',
       'Verify the UIDs exist in this database, then retry.',
@@ -209,7 +209,7 @@ async function runEpost(client: EutilsClient, input: z.infer<typeof EpostInput>)
 }
 
 /** Register ESearch and EPost. */
-export function registerSearchTools(server: McpServer, client: EutilsClient): void {
+export function registerSearchTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_esearch',
     {
@@ -248,13 +248,13 @@ Error Handling:
   - Rejects retmax above 10000 with advice to use the History server
   - Rejects an unknown database and lists valid ones
   - Returns an empty result with spelling advice rather than an error`,
-      inputSchema: EsearchInput,
-      outputSchema: EsearchOutput,
+      inputSchema: ESearchInput,
+      outputSchema: ESearchOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEsearch(client, input);
+        return await runESearch(client, input);
       } catch (error) {
         return errorResult(error);
       }
@@ -286,13 +286,13 @@ Examples:
 Error Handling:
   - Rejects UIDs containing URL metacharacters
   - Reports an upstream error if NCBI returns no History handle`,
-      inputSchema: EpostInput,
-      outputSchema: EpostOutput,
+      inputSchema: EPostInput,
+      outputSchema: EPostOutput,
       annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEpost(client, input);
+        return await runEPost(client, input);
       } catch (error) {
         return errorResult(error);
       }

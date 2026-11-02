@@ -8,7 +8,7 @@ import {
   sanitizeUntrusted,
   truncateWithNotice,
 } from '../src/services/formatters.js';
-import { EutilsError } from '../src/types.js';
+import { EUtilsError } from '../src/types.js';
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from '../src/constants.js';
 
 describe('sanitizeUntrusted', () => {
@@ -122,8 +122,8 @@ describe('respond', () => {
 });
 
 describe('errorResult', () => {
-  it('renders an EutilsError with its suggestion', () => {
-    const result = errorResult(new EutilsError('rate_limit', 'Too fast.', 'Slow down or set NCBI_API_KEY.'));
+  it('renders an EUtilsError with its suggestion', () => {
+    const result = errorResult(new EUtilsError('rate_limit', 'Too fast.', 'Slow down or set NCBI_API_KEY.'));
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain('rate_limit');
     expect(result.content[0]?.text).toContain('Suggested next step');

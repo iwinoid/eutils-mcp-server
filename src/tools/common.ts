@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { EutilsError, type HistoryRef } from '../types.js';
+import { EUtilsError, type HistoryRef } from '../types.js';
 import { parseUids, validateDatabase, validateHistory } from '../services/validate.js';
 
 /** Output format shared by every tool. */
@@ -80,7 +80,7 @@ export function resolveSource(
   const hasHistory = input.history !== undefined;
 
   if (hasUids && hasHistory) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       'Both uids and history were supplied.',
       'Pass either an explicit UID list or a history reference, not both.',
@@ -106,7 +106,7 @@ export function resolveSource(
     return { db: defaultDb, id: cleaned.join(','), count: cleaned.length };
   }
 
-  throw new EutilsError(
+  throw new EUtilsError(
     'validation',
     'Neither uids nor history was supplied.',
     'Supply a UID list, or pass the history object from an earlier eutils_esearch, eutils_epost, or eutils_elink call.',
@@ -145,7 +145,7 @@ export function resolveDbAndSource(input: {
   if (input.history) {
     const fromHistory = validateDatabase(input.history.db);
     if (explicit !== undefined && explicit !== fromHistory) {
-      throw new EutilsError(
+      throw new EUtilsError(
         'validation',
         `db '${explicit}' does not match history.db '${fromHistory}'.`,
         'Omit db, or pass a history object belonging to the same database.',
@@ -155,7 +155,7 @@ export function resolveDbAndSource(input: {
   }
 
   if (explicit === undefined) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       'No database was given.',
       'Pass db, for example "pubmed", or pass a history object that carries one. Use eutils_einfo to list databases.',
@@ -169,14 +169,14 @@ export function resolveDbAndSource(input: {
 export function requireTerm(term: string | undefined): string {
   const trimmed = (term ?? '').trim();
   if (trimmed.length === 0) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       'The search term was empty.',
       'Supply an Entrez query, for example "breast cancer AND 2008[pdat]". Use eutils_einfo to list searchable fields.',
     );
   }
   if (trimmed.length > 2000) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'validation',
       `The search term is ${trimmed.length} characters, over the 2000-character limit.`,
       'Shorten the query, or split it into several searches combined with the History server.',

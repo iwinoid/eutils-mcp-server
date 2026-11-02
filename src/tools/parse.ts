@@ -6,7 +6,7 @@
  * captured NCBI fixtures.
  */
 
-import { EutilsError, type HistoryRef } from '../types.js';
+import { EUtilsError, type HistoryRef } from '../types.js';
 import { asArray, textOf } from '../services/xml.js';
 
 /** Databases whose DocSums carry article metadata rather than sequence metadata. */
@@ -38,7 +38,7 @@ export interface CompactRecord {
   [key: string]: unknown;
 }
 
-export interface EgqueryEntry {
+export interface EGQueryEntry {
   db: string;
   menu: string;
   count: number;
@@ -50,7 +50,7 @@ export interface TranslationEntry {
   to: string;
 }
 
-export interface EsearchParsed {
+export interface ESearchParsed {
   total: number;
   uids: string[];
   queryTranslation: string;
@@ -66,7 +66,7 @@ export interface LinkGroup {
   query_key?: string;
 }
 
-export interface ElinkParsed {
+export interface ELinkParsed {
   groups: LinkGroup[];
   webEnv?: string;
   histories: HistoryRef[];
@@ -75,7 +75,7 @@ export interface ElinkParsed {
 /** Read a required top-level section out of a parsed JSON body. */
 export function requireSection<T>(json: unknown, key: string, endpoint: string): T {
   if (json === null || typeof json !== 'object') {
-    throw new EutilsError(
+    throw new EUtilsError(
       'parse',
       `${endpoint} returned a body that is not JSON.`,
       'Retry. If it persists, the NCBI response format may have changed.',
@@ -83,7 +83,7 @@ export function requireSection<T>(json: unknown, key: string, endpoint: string):
   }
   const section = (json as Record<string, unknown>)[key];
   if (section === undefined || section === null) {
-    throw new EutilsError(
+    throw new EUtilsError(
       'parse',
       `${endpoint} JSON had no '${key}' section.`,
       'Retry. If it persists, the NCBI response format may have changed.',
@@ -102,7 +102,7 @@ export function historyFrom(db: string, webEnv: unknown, queryKey: unknown): His
 }
 
 /** Parse an ESearch JSON body. */
-export function parseEsearch(json: unknown, db: string, includeHistory: boolean): EsearchParsed {
+export function parseESearch(json: unknown, db: string, includeHistory: boolean): ESearchParsed {
   const root = requireSection<Record<string, unknown>>(json, 'esearchresult', 'ESearch');
 
   const history = includeHistory ? historyFrom(db, root['webenv'], root['querykey']) : undefined;
@@ -185,7 +185,7 @@ export function compactGeneric(uid: string, rec: Record<string, unknown>): Compa
 }
 
 /** Parse an ESummary JSON body into compact records. */
-export function parseEsummary(json: unknown, db: string): { uids: string[]; records: CompactRecord[] } {
+export function parseESummary(json: unknown, db: string): { uids: string[]; records: CompactRecord[] } {
   const root = requireSection<Record<string, unknown>>(json, 'result', 'ESummary');
   const uids = asArray(root['uids'])
     .map((uid) => textOf(uid))
@@ -208,7 +208,7 @@ export function parseEsummary(json: unknown, db: string): { uids: string[]; reco
  * `linksets` is an array at the top level; reading it as an object yields an
  * empty result and silently reports zero links.
  */
-export function parseElink(json: unknown): ElinkParsed {
+export function parseELink(json: unknown): ELinkParsed {
   const linksets = asArray(requireSection<Record<string, unknown>[]>(json, 'linksets', 'ELink')) as Record<
     string,
     unknown
@@ -254,7 +254,7 @@ export function parseElink(json: unknown): ElinkParsed {
 }
 
 /** Parse the EGQuery XML body, which reports a count per database. */
-export function parseEgquery(xml: unknown): EgqueryEntry[] {
+export function parseEGQuery(xml: unknown): EGQueryEntry[] {
   const root = (xml as Record<string, unknown> | undefined)?.['eGQueryResult'] as
     Record<string, unknown> | undefined;
 
@@ -269,7 +269,7 @@ export function parseEgquery(xml: unknown): EgqueryEntry[] {
 }
 
 /** Parse the ESpell XML body. */
-export function parseEspell(
+export function parseESpell(
   xml: unknown,
   fallbackTerm: string,
 ): { query: string; corrected: string; changed: boolean } {
@@ -287,7 +287,7 @@ export function parseEspell(
 }
 
 /** Parse the EPost XML body and build its History reference. */
-export function parseEpost(xml: unknown, db: string): HistoryRef | undefined {
+export function parseEPost(xml: unknown, db: string): HistoryRef | undefined {
   const root = (xml as Record<string, unknown> | undefined)?.['ePostResult'] as
     Record<string, unknown> | undefined;
   return historyFrom(db, textOf(root?.['WebEnv']), textOf(root?.['QueryKey']));
@@ -313,7 +313,7 @@ export interface CitationMatch {
  * request's carriage returns to line feeds in the reply, but all three line
  * endings are accepted in case that changes.
  */
-export function parseEcitmatch(body: string, inputs: readonly string[]): CitationMatch[] {
+export function parseECitMatch(body: string, inputs: readonly string[]): CitationMatch[] {
   return body
     .trim()
     .split(/\r\n|\r|\n/)

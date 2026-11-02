@@ -1,11 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { BATCH_SIZE, DEFAULT_RETMAX, SEQUENCE_DATABASES } from '../constants.js';
-import { EutilsError } from '../types.js';
-import type { EutilsClient } from '../services/eutilsClient.js';
+import { EUtilsError } from '../types.js';
+import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { chunk, validateRetmax } from '../services/validate.js';
-import { parseEsummary, type CompactRecord } from './parse.js';
+import { parseESummary, type CompactRecord } from './parse.js';
 import {
   applySource,
   HistorySchema,
@@ -15,7 +15,7 @@ import {
   UidSourceShape,
 } from './common.js';
 
-const EsummaryInput = z.object({
+const ESummaryInput = z.object({
   db: z
     .string()
     .optional()
@@ -39,7 +39,7 @@ const EsummaryInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-const EfetchInput = z.object({
+const EFetchInput = z.object({
   db: z
     .string()
     .optional()
@@ -71,7 +71,7 @@ const EfetchInput = z.object({
   response_format: ResponseFormatSchema,
 });
 
-const EsummaryOutput = z.looseObject({
+const ESummaryOutput = z.looseObject({
   database: z.string(),
   total: z
     .number()
@@ -87,7 +87,7 @@ const EsummaryOutput = z.looseObject({
   records: z.array(z.looseObject({ uid: z.string(), title: z.string().optional() })),
 });
 
-const EfetchOutput = z.looseObject({
+const EFetchOutput = z.looseObject({
   database: z.string(),
   rettype: z.string(),
   retmode: z.string(),
@@ -143,9 +143,9 @@ function renderRecordMarkdown(record: CompactRecord, index: number): string {
   return lines.join('\n');
 }
 
-async function runEsummary(
-  client: EutilsClient,
-  input: z.infer<typeof EsummaryInput>,
+async function runESummary(
+  client: EUtilsClient,
+  input: z.infer<typeof ESummaryInput>,
 ): Promise<ToolTextResult> {
   const source = resolveDbAndSource(input);
   const db = source.db;
@@ -169,7 +169,7 @@ async function runEsummary(
     }
 
     const res = await client.request({ endpoint: 'esummary.fcgi', params });
-    const { records } = parseEsummary(res.json, db);
+    const { records } = parseESummary(res.json, db);
     allRecords.push(...records);
   }
 
@@ -215,22 +215,22 @@ async function runEsummary(
 }
 
 /** Choose a sensible default record format for a database. */
-export function defaultRettype(db: string, requested: string | undefined): string {
+export function defaultRetType(db: string, requested: string | undefined): string {
   if (requested) return requested;
   if (db === 'pubmed') return 'abstract';
   if (SEQUENCE_DATABASES.includes(db)) return 'fasta';
 
-  throw new EutilsError(
+  throw new EUtilsError(
     'validation',
     `No default record format is defined for database '${db}'.`,
     'Pass rettype explicitly, for example "gb" for nuccore, "docsum" for a summary-style record, or "xml" for the native record.',
   );
 }
 
-async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput>): Promise<ToolTextResult> {
+async function runEFetch(client: EUtilsClient, input: z.infer<typeof EFetchInput>): Promise<ToolTextResult> {
   const source = resolveDbAndSource(input);
   const db = source.db;
-  const rettype = defaultRettype(db, input.rettype);
+  const rettype = defaultRetType(db, input.rettype);
   const retmode = input.retmode ?? 'text';
   const retstart = input.retstart ?? 0;
   const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
@@ -255,7 +255,7 @@ async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput
     const body = res.text.trim();
 
     if (/^error[:\s]/i.test(body)) {
-      throw new EutilsError(
+      throw new EUtilsError(
         'validation',
         `EFetch reported: ${body.slice(0, 300)}`,
         'Check that the UIDs exist in this database and that rettype is valid for it. Use eutils_einfo to inspect the database.',
@@ -309,7 +309,7 @@ async function runEfetch(client: EutilsClient, input: z.infer<typeof EfetchInput
 }
 
 /** Register ESummary and EFetch. */
-export function registerRecordTools(server: McpServer, client: EutilsClient): void {
+export function registerRecordTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_esummary',
     {
@@ -345,13 +345,13 @@ Error Handling:
   - Refuses more than 500 UIDs per call and batches larger lists internally
   - Refuses to combine uids and history in one call
   - Rejects retmax above 500 rather than silently truncating`,
-      inputSchema: EsummaryInput,
-      outputSchema: EsummaryOutput,
+      inputSchema: ESummaryInput,
+      outputSchema: ESummaryOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEsummary(client, input);
+        return await runESummary(client, input);
       } catch (error) {
         return errorResult(error);
       }
@@ -394,13 +394,13 @@ Error Handling:
   - Asks for an explicit rettype when the database has no default
   - Detects an error message returned as record text and reports it as a tool error
   - Refuses retmax above 500; larger sets are batched internally`,
-      inputSchema: EfetchInput,
-      outputSchema: EfetchOutput,
+      inputSchema: EFetchInput,
+      outputSchema: EFetchOutput,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async (input) => {
       try {
-        return await runEfetch(client, input);
+        return await runEFetch(client, input);
       } catch (error) {
         return errorResult(error);
       }

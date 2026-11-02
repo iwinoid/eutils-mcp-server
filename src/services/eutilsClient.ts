@@ -9,13 +9,13 @@ import {
   POST_THRESHOLD_URL_LENGTH,
   REQUEST_TIMEOUT_MS,
 } from '../constants.js';
-import { EutilsError, type QueryParams } from '../types.js';
+import { EUtilsError, type QueryParams } from '../types.js';
 import { type Clock, createRateLimiter, systemClock, type TokenBucket } from './rateLimiter.js';
 
 /** Minimal fetch shape, injected so tests never touch the network. */
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-export interface EutilsClientOptions {
+export interface EUtilsClientOptions {
   apiKey?: string | undefined;
   email?: string | undefined;
   tool?: string | undefined;
@@ -26,7 +26,7 @@ export interface EutilsClientOptions {
   maxRetries?: number | undefined;
 }
 
-export interface EutilsRequest {
+export interface EUtilsRequest {
   /** Endpoint file name, for example `esearch.fcgi`. */
   endpoint: string;
   params: QueryParams;
@@ -36,7 +36,7 @@ export interface EutilsRequest {
   accept?: string | undefined;
 }
 
-export interface EutilsResponse {
+export interface EUtilsResponse {
   status: number;
   contentType: string;
   text: string;
@@ -94,7 +94,7 @@ async function readCapped(response: Response, maxBytes: number): Promise<string>
       total += value.byteLength;
       if (total > maxBytes) {
         await reader.cancel();
-        throw new EutilsError(
+        throw new EUtilsError(
           'upstream',
           `NCBI response exceeded the ${Math.round(maxBytes / 1024 / 1024)} MB ceiling and was abandoned.`,
           'Reduce retmax, narrow the query with filters, or fetch fewer UIDs per call.',
@@ -124,14 +124,14 @@ function backoffMs(attempt: number): number {
  * limiting, retries, size limits, and credential redaction. No tool may
  * build a request without it.
  */
-export class EutilsClient {
+export class EUtilsClient {
   private readonly limiter: TokenBucket;
   private readonly clock: Clock;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
 
-  constructor(private readonly options: EutilsClientOptions = {}) {
+  constructor(private readonly options: EUtilsClientOptions = {}) {
     this.clock = options.clock ?? systemClock;
     this.limiter = options.limiter ?? createRateLimiter(options.apiKey, this.clock);
     this.fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
@@ -191,7 +191,7 @@ export class EutilsClient {
 
       const next = new URL(location, url).toString();
       if (!isAllowedHost(next)) {
-        throw new EutilsError(
+        throw new EUtilsError(
           'network',
           `Refused a redirect to a non-NCBI host.`,
           'This is a safety guard. Report it if it blocks a legitimate request.',
@@ -204,7 +204,7 @@ export class EutilsClient {
         // NCBI's EGQuery endpoint currently 301s to an internal
         // service-mesh host that is absent from public DNS. Name it, so the
         // caller can degrade instead of reporting a bare "fetch failed".
-        throw new EutilsError(
+        throw new EUtilsError(
           'network',
           `NCBI redirected this request to ${new URL(url).host}, which is not reachable from the public internet.`,
           'This is an upstream NCBI problem rather than a local one. Retry later, or use a different E-utilities endpoint.',
@@ -212,7 +212,7 @@ export class EutilsClient {
       }
     }
 
-    throw new EutilsError(
+    throw new EUtilsError(
       'network',
       `Exceeded ${MAX_REDIRECTS} redirects from NCBI.`,
       'Retry later. If it persists, the endpoint may have moved.',
@@ -220,13 +220,13 @@ export class EutilsClient {
   }
 
   /** Perform one logical E-utilities request, with rate limiting and retries. */
-  async request(req: EutilsRequest): Promise<EutilsResponse> {
+  async request(req: EUtilsRequest): Promise<EUtilsResponse> {
     const method = this.chooseMethod(req.endpoint, req.params, req.method);
     const search = this.buildParams(req.params);
     const url = `${BASE_URL}${req.endpoint}`;
     const accept = req.accept ?? 'application/json, text/xml, text/plain, */*';
 
-    let lastError: EutilsError | undefined;
+    let lastError: EUtilsError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       await this.limiter.acquire();
@@ -266,7 +266,7 @@ export class EutilsClient {
           if (method === 'GET') {
             return await this.request({ ...req, method: 'POST' });
           }
-          throw new EutilsError(
+          throw new EUtilsError(
             'validation',
             'NCBI rejected the request as too large even over POST.',
             `Split the UID list into chunks of ${200} or fewer and retry.`,
@@ -285,7 +285,7 @@ export class EutilsClient {
 
         return { status: response.status, contentType, text, ...(json === undefined ? {} : { json }) };
       } catch (error) {
-        if (error instanceof EutilsError) {
+        if (error instanceof EUtilsError) {
           if (error.kind === 'timeout' && attempt < this.maxRetries) {
             lastError = error;
             await sleepWithClock(this.clock, backoffMs(attempt));
@@ -303,7 +303,7 @@ export class EutilsClient {
       }
     }
 
-    throw lastError ?? new EutilsError('network', 'Request failed after retries.', 'Retry later.');
+    throw lastError ?? new EUtilsError('network', 'Request failed after retries.', 'Retry later.');
   }
 
   private tryParseJson(text: string, contentType: string): unknown {
@@ -316,9 +316,9 @@ export class EutilsClient {
     }
   }
 
-  private mapStatus(status: number, body: string): EutilsError {
+  private mapStatus(status: number, body: string): EUtilsError {
     if (status === 429) {
-      return new EutilsError(
+      return new EUtilsError(
         'rate_limit',
         'NCBI rate limit exceeded.',
         this.hasApiKey
@@ -327,31 +327,31 @@ export class EutilsClient {
       );
     }
     if (status === 404) {
-      return new EutilsError(
+      return new EUtilsError(
         'not_found',
         'NCBI returned 404 for this request.',
         'Check the database name and UID values.',
       );
     }
     if (status >= 500) {
-      return new EutilsError(
+      return new EUtilsError(
         'upstream',
         `NCBI returned HTTP ${status}.`,
         'This is usually transient. Retry shortly; if it persists the endpoint may be under maintenance.',
       );
     }
     const detail = redact(body.slice(0, 300), this.options.apiKey).trim();
-    return new EutilsError(
+    return new EUtilsError(
       'upstream',
       `NCBI returned HTTP ${status}${detail ? `: ${detail}` : '.'}`,
       'Check the parameter values against eutils_einfo for this database.',
     );
   }
 
-  private mapEmbeddedError(message: string): EutilsError {
+  private mapEmbeddedError(message: string): EUtilsError {
     const clean = redact(message, this.options.apiKey);
     if (/rate limit/i.test(clean)) {
-      return new EutilsError(
+      return new EUtilsError(
         'rate_limit',
         'NCBI reported: API rate limit exceeded.',
         this.hasApiKey
@@ -360,41 +360,41 @@ export class EutilsClient {
       );
     }
     if (/invalid|not found|cannot|failed/i.test(clean)) {
-      return new EutilsError(
+      return new EUtilsError(
         'validation',
         `NCBI reported: ${clean}`,
         'Verify the database and UID values, and use eutils_einfo to check field names.',
       );
     }
-    return new EutilsError('upstream', `NCBI reported: ${clean}`, 'Adjust the request and retry.');
+    return new EUtilsError('upstream', `NCBI reported: ${clean}`, 'Adjust the request and retry.');
   }
 
-  private mapThrown(error: unknown): EutilsError {
+  private mapThrown(error: unknown): EUtilsError {
     if (error instanceof Error) {
       if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-        return new EutilsError(
+        return new EUtilsError(
           'timeout',
           `NCBI did not answer within ${this.timeoutMs / 1000} seconds.`,
           'Reduce retmax or narrow the query, then retry.',
         );
       }
-      return new EutilsError(
+      return new EUtilsError(
         'network',
         `Could not reach NCBI: ${redact(error.message, this.options.apiKey)}`,
         'Check network connectivity and retry.',
       );
     }
-    return new EutilsError('network', 'Could not reach NCBI.', 'Check network connectivity and retry.');
+    return new EUtilsError('network', 'Could not reach NCBI.', 'Check network connectivity and retry.');
   }
 }
 
 /** Build a client from environment variables, warning when identity is missing. */
-export function createClientFromEnv(overrides: EutilsClientOptions = {}): EutilsClient {
+export function createClientFromEnv(overrides: EUtilsClientOptions = {}): EUtilsClient {
   const email = process.env['NCBI_EMAIL'];
   const apiKey = process.env['NCBI_API_KEY'];
   const tool = process.env['NCBI_TOOL'];
 
-  return new EutilsClient({
+  return new EUtilsClient({
     ...(apiKey ? { apiKey } : {}),
     ...(email ? { email } : {}),
     ...(tool ? { tool } : {}),
