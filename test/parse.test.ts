@@ -170,6 +170,109 @@ describe('parseELink', () => {
   });
 });
 
+describe('parseELink command shapes', () => {
+  it('reads acheck available links from each linkinfo and dedupes by dbto and linkname', () => {
+    const parsed = parseELink(loadJson('elink-acheck.json'));
+    expect(parsed.groups).toEqual([]);
+    expect(parsed.availableLinks).toHaveLength(2);
+    expect(parsed.availableLinks.every((link) => link.dbto.length > 0)).toBe(true);
+    expect(parsed.availableLinks.map((link) => link.dbto)).toEqual(['bioproject', 'cdd']);
+  });
+
+  it('keeps the menu and html labels of an acheck link', () => {
+    const parsed = parseELink(loadJson('elink-acheck.json'));
+    expect(parsed.availableLinks[0]).toEqual({
+      dbto: 'bioproject',
+      linkname: 'protein_bioproject',
+      menu_tag: 'BioProject',
+      html_tag: 'BioProject',
+    });
+    expect(parsed.availableLinks[1]!.linkname).toBe('protein_cdd');
+  });
+
+  it('reads lcheck LinkOut checks as booleans', () => {
+    const parsed = parseELink(loadJson('elink-lcheck.json'));
+    expect(parsed.linkChecks).toEqual([
+      { uid: '15718680', has_linkout: true, has_neighbor: false },
+      { uid: '157427902', has_linkout: false, has_neighbor: false },
+    ]);
+  });
+
+  it('reads ncheck neighbor checks when haslinkout is absent', () => {
+    const parsed = parseELink(loadJson('elink-ncheck.json'));
+    expect(parsed.linkChecks).toEqual([
+      { uid: '21614549', has_neighbor: true },
+      { uid: '219152114', has_neighbor: false },
+    ]);
+  });
+
+  it('reads llinks provider URLs and drops non-http schemes', () => {
+    const parsed = parseELink(loadJson('elink-llinks.json'));
+    expect(parsed.providerLinks).toEqual([
+      {
+        uid: '19880848',
+        urls: [
+          {
+            url: 'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2790018/',
+            provider: 'PubMed Central',
+            provider_abbr: 'PMC',
+            categories: ['Full Text'],
+            attributes: ['free resource'],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('reads prlinks primary provider URLs with their attributes', () => {
+    const parsed = parseELink(loadJson('elink-prlinks.json'));
+    expect(parsed.providerLinks).toHaveLength(1);
+    expect(parsed.providerLinks[0]!.urls[0]!.provider_abbr).toBe('PMC');
+    expect(parsed.providerLinks[0]!.urls[0]!.attributes).toEqual(['primary provider']);
+  });
+
+  it('reads neighbor_score ids with aligned numeric scores', () => {
+    const parsed = parseELink(loadJson('elink-neighbor-score.json'));
+    expect(parsed.groups).toHaveLength(1);
+    expect(parsed.groups[0]!.ids).toEqual(['20210809', '20210810']);
+    expect(parsed.groups[0]!.scores).toEqual([100, 50]);
+    expect(parsed.groups[0]!.count).toBe(2);
+  });
+
+  it('omits scores for plain string links', () => {
+    expect(parseELink(loadJson('elink-links.json')).groups[0]).not.toHaveProperty('scores');
+  });
+
+  it('returns empty command-specific collections for a linkset without them', () => {
+    const parsed = parseELink(loadJson('elink-links.json'));
+    expect(parsed.availableLinks).toEqual([]);
+    expect(parsed.linkChecks).toEqual([]);
+    expect(parsed.providerLinks).toEqual([]);
+  });
+
+  it('throws an upstream error for a top-level error string', () => {
+    try {
+      parseELink({ error: 'Invalid db name' });
+      throw new Error('parseELink did not throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(EUtilsError);
+      expect((error as EUtilsError).kind).toBe('upstream');
+      expect((error as EUtilsError).message).toContain('Invalid db name');
+    }
+  });
+
+  it('throws an upstream error for a linkset ERROR string', () => {
+    try {
+      parseELink({ linksets: [{ ERROR: 'ID list is empty' }] });
+      throw new Error('parseELink did not throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(EUtilsError);
+      expect((error as EUtilsError).kind).toBe('upstream');
+      expect((error as EUtilsError).message).toContain('ID list is empty');
+    }
+  });
+});
+
 describe('parseEGQuery', () => {
   const xml = `<?xml version="1.0"?>
 <eGQueryResult>

@@ -63,13 +63,43 @@ export interface LinkGroup {
   linkname: string;
   count: number;
   ids: string[];
+  scores?: (number | null)[];
   query_key?: string;
+}
+
+export interface AvailableLink {
+  dbto: string;
+  linkname: string;
+  menu_tag?: string;
+  html_tag?: string;
+}
+
+export interface LinkCheck {
+  uid: string;
+  has_linkout?: boolean;
+  has_neighbor?: boolean;
+}
+
+export interface ProviderUrl {
+  url: string;
+  provider?: string;
+  provider_abbr?: string;
+  categories: string[];
+  attributes: string[];
+}
+
+export interface ProviderLink {
+  uid: string;
+  urls: ProviderUrl[];
 }
 
 export interface ELinkParsed {
   groups: LinkGroup[];
   webEnv?: string;
   histories: HistoryRef[];
+  availableLinks: AvailableLink[];
+  linkChecks: LinkCheck[];
+  providerLinks: ProviderLink[];
 }
 
 /** Read a required top-level section out of a parsed JSON body. */
@@ -202,6 +232,176 @@ export function parseESummary(json: unknown, db: string): { uids: string[]; reco
   return { uids, records };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function recordOf(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function readTextField(record: Record<string, unknown>, keys: readonly string[]): string {
+  for (const key of keys) {
+    const value = textOf(record[key]);
+    if (value.length > 0) return value;
+  }
+  return '';
+}
+
+function readTextList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => readTextList(item));
+  }
+  const record = recordOf(value);
+  if (record) {
+    const nested = record['category'] ?? record['categories'] ?? record['attribute'] ?? record['attributes'];
+    if (nested !== undefined) return readTextList(nested);
+    const text = readTextField(record, ['value', '#text', 'name']);
+    return text.length > 0 ? [text] : [];
+  }
+  const text = textOf(value);
+  return text.length > 0 ? [text] : [];
+}
+
+function ynBoolean(value: string): boolean | undefined {
+  if (value === 'Y' || value === 'y') return true;
+  if (value === 'N' || value === 'n') return false;
+  return undefined;
+}
+
+function errorText(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  const record = recordOf(value);
+  if (!record) return undefined;
+  return errorText(record['message']) ?? errorText(record['#text']) ?? errorText(record['error']);
+}
+
+function elinkErrorMessage(json: unknown): string | undefined {
+  const root = recordOf(json);
+  if (!root) return undefined;
+  const top = errorText(root['error']) ?? errorText(root['ERROR']) ?? errorText(root['Error']);
+  if (top !== undefined) return top;
+  for (const value of asArray(root['linksets'])) {
+    const linkset = recordOf(value);
+    if (!linkset) continue;
+    const message = errorText(linkset['error']) ?? errorText(linkset['ERROR']) ?? errorText(linkset['Error']);
+    if (message !== undefined) return message;
+  }
+  return undefined;
+}
+
+function readLinks(value: unknown): { ids: string[]; scores?: (number | null)[] } {
+  const ids: string[] = [];
+  const scores: (number | null)[] = [];
+  let scored = false;
+
+  for (const item of asArray(value)) {
+    const record = recordOf(item);
+    if (!record) {
+      const id = textOf(item);
+      if (id.length > 0) {
+        ids.push(id);
+        scores.push(null);
+      }
+      continue;
+    }
+    const id = textOf(record['id']);
+    if (id.length === 0) continue;
+    ids.push(id);
+    const rawScore = textOf(record['score']);
+    const score = rawScore.length > 0 ? Number(rawScore) : Number.NaN;
+    scores.push(Number.isFinite(score) ? score : null);
+    scored = true;
+  }
+
+  return scored ? { ids, scores } : { ids };
+}
+
+function readAvailableLinks(
+  linkset: Record<string, unknown>,
+  links: AvailableLink[],
+  seen: Set<string>,
+): void {
+  const checklist = recordOf(linkset['idchecklist']);
+  if (!checklist) return;
+  for (const value of asArray(checklist['idlinksets'])) {
+    const set = recordOf(value);
+    if (!set) continue;
+    const wrapperDbto = textOf(set['dbto']);
+    for (const infoValue of asArray(set['linkinfos'])) {
+      const info = recordOf(infoValue);
+      if (!info) continue;
+      const linkname = textOf(info['linkname']);
+      if (linkname.length === 0) continue;
+      const dbto = readTextField(info, ['dbto', 'db_to']) || wrapperDbto;
+      const key = `${dbto}\u0000${linkname}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const menuTag = readTextField(info, ['menutag', 'menu_tag', 'menu']);
+      const htmlTag = readTextField(info, ['htmltag', 'html_tag', 'html']);
+      links.push({
+        dbto,
+        linkname,
+        ...(menuTag.length > 0 ? { menu_tag: menuTag } : {}),
+        ...(htmlTag.length > 0 ? { html_tag: htmlTag } : {}),
+      });
+    }
+  }
+}
+
+function readLinkChecks(linkset: Record<string, unknown>, checks: LinkCheck[]): void {
+  const checklist = recordOf(linkset['idchecklist']);
+  if (!checklist) return;
+  for (const value of asArray(checklist['ids'])) {
+    const record = recordOf(value);
+    if (!record) {
+      const uid = textOf(value);
+      if (uid.length > 0) checks.push({ uid });
+      continue;
+    }
+    const uid = readTextField(record, ['value', 'id', 'uid']);
+    if (uid.length === 0) continue;
+    const hasLinkout = ynBoolean(readTextField(record, ['haslinkout', 'has_linkout']));
+    const hasNeighbor = ynBoolean(readTextField(record, ['hasneighbor', 'has_neighbor']));
+    checks.push({
+      uid,
+      ...(hasLinkout !== undefined ? { has_linkout: hasLinkout } : {}),
+      ...(hasNeighbor !== undefined ? { has_neighbor: hasNeighbor } : {}),
+    });
+  }
+}
+
+function readProviderLinks(linkset: Record<string, unknown>, links: ProviderLink[]): void {
+  for (const value of asArray(linkset['idurllist'])) {
+    const set = recordOf(value);
+    if (!set) continue;
+    const uid = readTextField(set, ['id', 'uid']);
+    const urls: ProviderUrl[] = [];
+    for (const objValue of asArray(set['objurls'])) {
+      const objurl = recordOf(objValue);
+      if (!objurl) continue;
+      const rawUrl = objurl['url'];
+      const urlRecord = recordOf(rawUrl);
+      const url = urlRecord ? readTextField(urlRecord, ['value', '#text', 'url']) : textOf(rawUrl);
+      if (!/^https?:\/\//i.test(url)) continue;
+      const provider = recordOf(objurl['provider']);
+      const providerName = provider ? readTextField(provider, ['name']) : '';
+      const providerAbbr = provider ? readTextField(provider, ['nameabbr', 'name_abbr', 'abbr']) : '';
+      urls.push({
+        url,
+        ...(providerName.length > 0 ? { provider: providerName } : {}),
+        ...(providerAbbr.length > 0 ? { provider_abbr: providerAbbr } : {}),
+        categories: readTextList(objurl['categories'] ?? objurl['category']),
+        attributes: readTextList(objurl['attributes'] ?? objurl['attribute']),
+      });
+    }
+    if (urls.length > 0) links.push({ uid, urls });
+  }
+}
+
 /**
  * Parse an ELink JSON body.
  *
@@ -209,32 +409,48 @@ export function parseESummary(json: unknown, db: string): { uids: string[]; reco
  * empty result and silently reports zero links.
  */
 export function parseELink(json: unknown): ELinkParsed {
-  const linksets = asArray(requireSection<Record<string, unknown>[]>(json, 'linksets', 'ELink')) as Record<
-    string,
-    unknown
-  >[];
+  const failure = elinkErrorMessage(json);
+  if (failure !== undefined) {
+    throw new EUtilsError(
+      'upstream',
+      `ELink reported: ${failure}`,
+      'Check the cmd, dbfrom, db, linkname, and UID values, then retry. Use eutils_einfo to list databases and link names.',
+    );
+  }
+
+  const linksets = asArray(requireSection<unknown>(json, 'linksets', 'ELink'));
 
   const groups: LinkGroup[] = [];
   const histories: HistoryRef[] = [];
+  const availableLinks: AvailableLink[] = [];
+  const linkChecks: LinkCheck[] = [];
+  const providerLinks: ProviderLink[] = [];
+  const seenLinks = new Set<string>();
   let webEnv: string | undefined;
 
-  for (const linkset of linksets) {
+  for (const value of linksets) {
+    const linkset = recordOf(value);
+    if (!linkset) continue;
+
     const setWebEnv = textOf(linkset['webenv']);
     if (setWebEnv.length > 0) webEnv = setWebEnv;
 
-    for (const entry of asArray(linkset['linksetdbs']) as Record<string, unknown>[]) {
-      const ids = asArray(entry['links'])
-        .map((id) => textOf(id))
-        .filter((id) => id.length > 0);
+    for (const entryValue of asArray(linkset['linksetdbs'])) {
+      const entry = recordOf(entryValue);
+      if (!entry) continue;
+      const { ids, scores } = readLinks(entry['links']);
       groups.push({
         dbto: textOf(entry['dbto']),
         linkname: textOf(entry['linkname']),
         count: ids.length,
         ids,
+        ...(scores !== undefined ? { scores } : {}),
       });
     }
 
-    for (const entry of asArray(linkset['linksetdbhistories']) as Record<string, unknown>[]) {
+    for (const entryValue of asArray(linkset['linksetdbhistories'])) {
+      const entry = recordOf(entryValue);
+      if (!entry) continue;
       const queryKey = textOf(entry['querykey']);
       const dbto = textOf(entry['dbto']);
       groups.push({
@@ -248,9 +464,20 @@ export function parseELink(json: unknown): ELinkParsed {
         histories.push({ db: dbto, web_env: webEnv, query_key: queryKey });
       }
     }
+
+    readAvailableLinks(linkset, availableLinks, seenLinks);
+    readLinkChecks(linkset, linkChecks);
+    readProviderLinks(linkset, providerLinks);
   }
 
-  return { groups, ...(webEnv ? { webEnv } : {}), histories };
+  return {
+    groups,
+    ...(webEnv ? { webEnv } : {}),
+    histories,
+    availableLinks,
+    linkChecks,
+    providerLinks,
+  };
 }
 
 /** Parse the EGQuery XML body, which reports a count per database. */

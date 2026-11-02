@@ -1,0 +1,1 @@
+{"header":{"type":"elink","version":"0.3"},"linksets":[{"dbfrom":"pubmed","ids":["20210808"],"linksetdbs":[{"dbto":"pubmed","linkname":"pubmed_pubmed","links":[{"id":"20210809","score":"100"},{"id":"20210810","score":"50"}]}]}]}

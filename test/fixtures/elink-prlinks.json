@@ -1,0 +1,1 @@
+{"header":{"type":"elink","version":"0.3"},"linksets":[{"dbfrom":"pubmed","ids":["19880848"],"idurllist":[{"id":"19880848","objurls":[{"url":{"value":"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2790018/"},"linkname":"pubmed_pmc","provider":{"name":"PubMed Central","nameabbr":"PMC"},"categories":["Full Text"],"attributes":["primary provider"]}]}]}]}
