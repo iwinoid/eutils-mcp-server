@@ -17,14 +17,18 @@ permissions:
 
 jobs:
   build-and-test:
-    name: Build and unit tests
+    name: Build and unit tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22.9', '22.x']
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install
@@ -51,7 +55,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage
+          name: coverage-${{ matrix.node-version }}
           path: coverage/
           retention-days: 7
 

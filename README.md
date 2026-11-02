@@ -65,7 +65,7 @@ npm run build
 
 ### Dependencies
 
-Node.js 22 or newer. The version is pinned in `.nvmrc`.
+Node.js 22.9 or newer. The version is pinned in `.nvmrc`.
 
 The server has three runtime dependencies: `@modelcontextprotocol/server`,
 `fast-xml-parser`, and `zod`. The lockfile is committed. There is no installer script and

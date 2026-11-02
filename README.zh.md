@@ -57,7 +57,7 @@ npm run build
 
 ### 依赖
 
-需要 Node.js 22 或更高版本，版本锁在 `.nvmrc`。
+需要 Node.js 22.9 或更高版本，版本锁在 `.nvmrc`。
 
 运行时依赖三个：`@modelcontextprotocol/server`、`fast-xml-parser`、`zod`。lockfile 已提交。
 没有安装脚本，也没有原生构建步骤。

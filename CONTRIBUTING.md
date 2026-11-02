@@ -21,7 +21,7 @@ lowers a coverage threshold instead of raising coverage will be sent back.
 
 ## Requirements
 
-- Node.js 22, as pinned in `.nvmrc`.
+- Node.js 22.9 or newer, as pinned in `.nvmrc`.
 - `npm run ci` passes: lint, format check, type check, coverage, and build.
 - New behaviour comes with a test. A bug fix comes with a test that fails before the fix.
 - Live tests are separate. They call NCBI, so they are not part of `npm run ci`.
