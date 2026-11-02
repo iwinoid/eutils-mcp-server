@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = join(here, '..', 'dist', 'index.js');
 const live = process.argv.includes('--live');
+const PROTOCOL_VERSION = '2025-11-25';
 
 const EXPECTED_TOOLS = [
   'eutils_einfo',
@@ -107,7 +108,7 @@ function textOf(result) {
 try {
   console.log('MCP handshake');
   const init = await send('initialize', {
-    protocolVersion: '2026-07-28',
+    protocolVersion: PROTOCOL_VERSION,
     capabilities: {},
     clientInfo: { name: 'verify-server', version: '1.0.0' },
   });
@@ -118,9 +119,13 @@ try {
     JSON.stringify(init?.serverInfo),
   );
   check(
-    'a protocol version was negotiated',
-    typeof init?.protocolVersion === 'string',
+    'the negotiated protocol version is the stdio version',
+    init?.protocolVersion === PROTOCOL_VERSION,
     init?.protocolVersion,
+  );
+  check(
+    'the server publishes usage instructions',
+    typeof init?.instructions === 'string' && init.instructions.includes('untrusted'),
   );
 
   console.log('\nTool listing');

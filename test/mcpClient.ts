@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const SERVER_ENTRY = join(here, '..', 'dist', 'index.js');
+export const PROTOCOL_VERSION = '2025-11-25';
 
 export function serverIsBuilt(): boolean {
   return existsSync(SERVER_ENTRY);
@@ -106,7 +107,7 @@ export class StdioMcpClient {
 
   async initialize(): Promise<any> {
     const result = await this.send('initialize', {
-      protocolVersion: '2026-07-28',
+      protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: 'vitest-live', version: '1.0.0' },
     });
