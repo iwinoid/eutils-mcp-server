@@ -8,7 +8,7 @@ import {
   validateRetmax,
 } from '../src/services/validate.js';
 import { EUtilsError } from '../src/types.js';
-import { ENTREZ_DATABASES } from '../src/constants.js';
+import { ENTREZ_DATABASES, MAX_UIDS_PER_CALL } from '../src/constants.js';
 
 describe('validateDatabase', () => {
   it('accepts every database NCBI reports', () => {
@@ -79,6 +79,11 @@ describe('parseUids', () => {
 
   it('rejects an empty list', () => {
     expect(() => parseUids('')).toThrow(EUtilsError);
+  });
+
+  it('rejects a UID list over the per-call ceiling', () => {
+    const uids = Array.from({ length: MAX_UIDS_PER_CALL + 1 }, (_, index) => String(index + 1));
+    expect(() => parseUids(uids)).toThrow(EUtilsError);
   });
 
   it('accepts a stringified JSON array, as models often send one', () => {

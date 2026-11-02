@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import { MAX_CITATION_CHARS, MAX_CITATIONS } from '../constants.js';
 import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, respond, type ToolTextResult } from '../services/formatters.js';
@@ -63,6 +64,10 @@ const ELinkOutput = z.looseObject({
   command: z.string(),
   groups_found: z.number(),
   total_linked: z.number(),
+  stored_groups: z
+    .number()
+    .optional()
+    .describe('History-backed link groups; their counts are only known after downloading.'),
   groups: z.array(
     z.looseObject({
       dbto: z.string(),
@@ -123,6 +128,9 @@ async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>)
     command: input.cmd ?? 'neighbor',
     groups_found: groups.length,
     total_linked: totalLinked,
+    ...(groups.some((group) => group.query_key !== undefined)
+      ? { stored_groups: groups.filter((group) => group.query_key !== undefined).length }
+      : {}),
     groups,
     ...(histories.length > 0 ? { histories } : {}),
   };
@@ -132,7 +140,9 @@ async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>)
     '',
     groups.length === 0
       ? `No links found for these UIDs. Try \`eutils_einfo\` with db="${dbfrom}" to list available link names.`
-      : `${groups.length} link group(s), ${totalLinked.toLocaleString('en-US')} linked UID(s) in total.`,
+      : groups.every((group) => group.query_key !== undefined)
+        ? `${groups.length} link group(s) stored on the History server. The linked UID count is only known after downloading.`
+        : `${groups.length} link group(s), ${totalLinked.toLocaleString('en-US')} linked UID(s) in total.`,
     '',
     groups
       .map((group) => {
@@ -177,6 +187,21 @@ async function runECitMatch(
       'validation',
       'No citation strings were supplied.',
       'Pass at least one string formatted as journal|year|volume|first_page|author|key|.',
+    );
+  }
+  if (cleaned.length > MAX_CITATIONS) {
+    throw new EUtilsError(
+      'validation',
+      `The call contains ${cleaned.length} citations, over the ${MAX_CITATIONS}-citation ceiling.`,
+      'Split the citations into smaller calls.',
+    );
+  }
+  const tooLong = cleaned.find((citation) => citation.length > MAX_CITATION_CHARS);
+  if (tooLong !== undefined) {
+    throw new EUtilsError(
+      'validation',
+      `Citation string is over the ${MAX_CITATION_CHARS}-character ceiling.`,
+      'Shorten the citation fields; each one should be a single line.',
     );
   }
 

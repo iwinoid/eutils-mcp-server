@@ -259,4 +259,12 @@ describe('parseECitMatch', () => {
   it('ignores empty lines', () => {
     expect(parseECitMatch('science|1987|235|182|p|K|3026048\n\n', ['x'])).toHaveLength(1);
   });
+
+  it('matches by citation key when NCBI omits a line', () => {
+    const body = 'science|1987|235|182|p|K2|3026048';
+    const records = parseECitMatch(body, ['a|1|2|3|p|K1|', 'science|1987|235|182|p|K2|']);
+    expect(records).toHaveLength(1);
+    expect(records[0]!.key).toBe('K2');
+    expect(records[0]!.input).toContain('K2');
+  });
 });

@@ -102,6 +102,11 @@ export const POST_THRESHOLD_URL_LENGTH = 1800;
 /** UIDs per internal batch for ESummary and EFetch. */
 export const BATCH_SIZE = 500;
 
+/** Per-call input ceilings. One call must not allocate an unbounded request. */
+export const MAX_UIDS_PER_CALL = 2_000;
+export const MAX_CITATIONS = 200;
+export const MAX_CITATION_CHARS = 1_000;
+
 export const RATE_LIMIT_WITHOUT_KEY = 3;
 export const RATE_LIMIT_WITH_KEY = 10;
 

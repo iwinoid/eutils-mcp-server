@@ -314,6 +314,12 @@ export interface CitationMatch {
  * endings are accepted in case that changes.
  */
 export function parseECitMatch(body: string, inputs: readonly string[]): CitationMatch[] {
+  const byKey = new Map<string, string>();
+  for (const input of inputs) {
+    const key = (input.split('|')[5] ?? '').trim();
+    if (key.length > 0 && !byKey.has(key)) byKey.set(key, input);
+  }
+
   return body
     .trim()
     .split(/\r\n|\r|\n/)
@@ -321,15 +327,16 @@ export function parseECitMatch(body: string, inputs: readonly string[]): Citatio
     .filter((line) => line.length > 0)
     .map((line, index) => {
       const parts = line.split('|');
+      const key = (parts[5] ?? '').trim();
       const pmid = parts.length >= 7 ? (parts[6] ?? '').trim() : '';
       return {
-        input: inputs[index] ?? '',
+        input: byKey.get(key) ?? inputs[index] ?? '',
         journal: parts[0] ?? '',
         year: parts[1] ?? '',
         volume: parts[2] ?? '',
         first_page: parts[3] ?? '',
         author: parts[4] ?? '',
-        key: parts[5] ?? '',
+        key,
         pmid: /^\d+$/.test(pmid) ? pmid : '',
         matched: /^\d+$/.test(pmid),
       };

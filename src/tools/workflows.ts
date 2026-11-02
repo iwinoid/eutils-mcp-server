@@ -69,7 +69,12 @@ const LinkThenFetchOutput = z.looseObject({
   dbfrom: z.string(),
   dbto: z.string(),
   source_total: z.number(),
-  retrieved: z.number().optional(),
+  requested: z.number().optional().describe('Records requested from the target set.'),
+  retrieved: z
+    .number()
+    .optional()
+    .describe('Records counted in the returned text, when the format allows counting.'),
+  linkname: z.string().optional(),
   rettype: z.string().optional(),
   source_history: HistoryRefOutput.optional(),
   history: HistoryRefOutput.optional(),
@@ -210,6 +215,11 @@ async function runSearchThenFetch(
   return respond({ structured, markdown, format: input.response_format });
 }
 
+function countFastaRecords(body: string): number {
+  if (body.length === 0) return 0;
+  return body.split(/\r?\n(?=>)/).filter((part) => part.startsWith('>')).length;
+}
+
 async function runLinkThenFetch(
   client: EUtilsClient,
   input: z.infer<typeof LinkThenFetchInput>,
@@ -230,9 +240,10 @@ async function runLinkThenFetch(
     );
   }
 
+  const sourceUids = hasUids ? parseUids(input.uids!) : undefined;
   const source = hasTerm
     ? await searchToHistory(client, dbfrom, requireTerm(input.term))
-    : { count: 0, history: await postToHistory(client, dbfrom, parseUids(input.uids!)) };
+    : { count: sourceUids!.length, history: await postToHistory(client, dbfrom, sourceUids!) };
 
   const linkParams: QueryParams = {
     dbfrom,
@@ -245,15 +256,23 @@ async function runLinkThenFetch(
   if (input.linkname) linkParams['linkname'] = input.linkname;
 
   const linkRes = await client.request({ endpoint: 'elink.fcgi', params: linkParams });
-  const { histories } = parseELink(linkRes.json);
+  const { groups, webEnv, histories } = parseELink(linkRes.json);
 
-  const target = histories.find((candidate) => candidate.db === dbto) ?? histories[0];
+  const candidates = groups.filter((group) => group.dbto === dbto && group.query_key !== undefined);
+  const preferred = input.linkname
+    ? candidates.find((group) => group.linkname === input.linkname)
+    : (candidates.find((group) => group.linkname === dbfrom + '_' + dbto) ?? candidates[0]);
+  const target: HistoryRef | undefined =
+    preferred?.query_key !== undefined && webEnv !== undefined
+      ? { db: dbto, web_env: webEnv, query_key: preferred.query_key }
+      : (histories.find((candidate) => candidate.db === dbto) ?? histories[0]);
 
   if (target === undefined) {
     const structured = {
       dbfrom,
       dbto,
       source_total: source.count,
+      requested: retmax,
       linked: 0,
       text: '',
     };
@@ -269,12 +288,15 @@ async function runLinkThenFetch(
 
   const targetHistory: HistoryRef = target;
   const body = await fetchFromHistory(client, dbto, targetHistory, rettype, 'text', retmax);
+  const retrieved = rettype === 'fasta' ? countFastaRecords(body) : undefined;
 
   const structured = {
     dbfrom,
     dbto,
     source_total: source.count,
-    retrieved: retmax,
+    requested: retmax,
+    ...(retrieved !== undefined ? { retrieved } : {}),
+    ...(preferred?.linkname ? { linkname: preferred.linkname } : {}),
     rettype,
     source_history: source.history,
     history: targetHistory,

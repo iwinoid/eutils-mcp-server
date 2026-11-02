@@ -1,4 +1,4 @@
-import { DB_NAME_PATTERN, ENTREZ_DATABASES, RETMAX_CAPS } from '../constants.js';
+import { DB_NAME_PATTERN, ENTREZ_DATABASES, MAX_UIDS_PER_CALL, RETMAX_CAPS } from '../constants.js';
 import { EUtilsError } from '../types.js';
 
 const KNOWN_DATABASES = new Set<string>(ENTREZ_DATABASES);
@@ -73,6 +73,13 @@ export function parseUids(input: string | string[]): string[] {
       'validation',
       'No UIDs were provided.',
       'Supply at least one UID or accession, or pass a history reference instead.',
+    );
+  }
+  if (uids.length > MAX_UIDS_PER_CALL) {
+    throw new EUtilsError(
+      'validation',
+      `The call contains ${uids.length} UIDs, over the ${MAX_UIDS_PER_CALL}-UID ceiling.`,
+      'Split the list into smaller calls, or use a History set built from a query.',
     );
   }
 
