@@ -104,6 +104,53 @@ describe('ESearch History and date limits', () => {
     expect(description).toContain('"JournalName"');
     expect(description).not.toContain('first_author');
   });
+  it('sends field and idtype', async () => {
+    const harness = createHarness(() => json(esearchBody()));
+    const result = await harness.call('eutils_esearch', {
+      db: 'protein',
+      term: 'kinase',
+      field: 'title',
+      idtype: 'acc',
+      response_format: 'json',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(harness.calls[0]?.params['field']).toBe('title');
+    expect(harness.calls[0]?.params['idtype']).toBe('acc');
+  });
+  it('returns only the count in rettype=count mode', async () => {
+    const harness = createHarness(() => json({ esearchresult: { count: '42' } }));
+    const result = await harness.call('eutils_esearch', {
+      db: 'pubmed',
+      term: 'cancer',
+      rettype: 'count',
+      response_format: 'json',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(harness.calls[0]?.params['rettype']).toBe('count');
+    expect(harness.calls[0]?.params['usehistory']).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({
+      rettype: 'count',
+      total: 42,
+      count: 0,
+      offset: 0,
+      has_more: false,
+      uids: [],
+      query_translation: '',
+      term_translations: [],
+    });
+    expect(result.structuredContent.history).toBeUndefined();
+  });
+  it('renders count mode without a UID page', async () => {
+    const harness = createHarness(() => json({ esearchresult: { count: '42' } }));
+    const result = await harness.call('eutils_esearch', {
+      db: 'pubmed',
+      term: 'cancer',
+      rettype: 'count',
+    });
+    const markdown = String(result.content[0]?.text);
+    expect(markdown).toContain('Count-only request');
+    expect(markdown).not.toContain('Showing 0');
+  });
 });
 describe('EPost WebEnv', () => {
   it('posts UIDs into a supplied WebEnv', async () => {

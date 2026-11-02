@@ -7,6 +7,7 @@ describe('NCBI wire parameters', () => {
       dbFrom: 'dbfrom',
       id: 'id',
       term: 'term',
+      field: 'field',
       retMax: 'retmax',
       retStart: 'retstart',
       useHistory: 'usehistory',

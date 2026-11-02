@@ -22,6 +22,26 @@ const ESearchInput = z.object({
     .describe(
       'Entrez query. Field tags go in square brackets, for example "breast cancer AND 2008[pdat]" or "mouse[orgn]".',
     ),
+  field: z
+    .string()
+    .regex(/^[A-Za-z0-9_]+$/, 'field must be a single Entrez field name, for example "title" or "tiab".')
+    .max(64)
+    .optional()
+    .describe(
+      'Restrict the whole term to one Entrez field, for example "title" or "tiab". Equivalent to wrapping the term in that field tag.',
+    ),
+  idtype: z
+    .enum(['acc'])
+    .optional()
+    .describe(
+      'Return accession.version identifiers instead of GI numbers for sequence databases. Only "acc" is supported.',
+    ),
+  rettype: z
+    .enum(['uilist', 'count'])
+    .optional()
+    .describe(
+      'Retrieval type: "uilist" (default) returns UIDs; "count" returns only the total count and no UIDs.',
+    ),
   retmax: z
     .number()
     .int()
@@ -86,6 +106,7 @@ const HistoryOutput = z.looseObject({
 const ESearchOutput = z.looseObject({
   database: z.string(),
   term: z.string(),
+  rettype: z.string().optional().describe('Retrieval type requested; "uilist" when omitted.'),
   total: z.number().describe('Records matching the whole query, not just this page.'),
   count: z.number().describe('Records returned on this page.'),
   offset: z.number(),
@@ -110,6 +131,8 @@ async function runESearch(
   const term = requireTerm(input.term);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esearch');
   const retstart = input.retstart ?? 0;
+  const rettype = input.rettype ?? 'uilist';
+  const countOnly = rettype === 'count';
   const historyRef = input.history ? validateHistory(input.history) : undefined;
   if (historyRef !== undefined && historyRef.db !== db) {
     throw new EUtilsError(
@@ -132,8 +155,11 @@ async function runESearch(
       'Pass datetype ("pdat", "edat", or "mdat") alongside reldate.',
     );
   }
-  const useHistory = historyRef !== undefined ? true : (input.usehistory ?? true);
+  const useHistory = historyRef !== undefined ? true : (input.usehistory ?? !countOnly);
   const params: QueryParams = { db, term, retmax, retstart, retmode: 'json' };
+  if (input.field) params['field'] = input.field;
+  if (input.idtype) params['idtype'] = input.idtype;
+  if (input.rettype) params['rettype'] = input.rettype;
   if (historyRef !== undefined) {
     params['WebEnv'] = historyRef.web_env;
     params['query_key'] = historyRef.query_key;
@@ -146,57 +172,70 @@ async function runESearch(
   if (useHistory) params['usehistory'] = 'y';
   const res = await client.request({ endpoint: 'esearch.fcgi', params, signal });
   const { total, uids, queryTranslation, translations, history } = parseESearch(res.json, db, useHistory);
-  const page = pageInfo(total, uids.length, retstart);
+  const page = countOnly
+    ? { total, count: 0, offset: retstart, has_more: false }
+    : pageInfo(total, uids.length, retstart);
   const structured = {
     database: db,
     term,
+    rettype,
     ...page,
-    uids,
-    query_translation: queryTranslation,
-    term_translations: translations,
-    ...(history ? { history } : {}),
+    uids: countOnly ? [] : uids,
+    query_translation: countOnly ? '' : queryTranslation,
+    term_translations: countOnly ? [] : translations,
+    ...(history && !countOnly ? { history } : {}),
   };
-  const markdown = [
-    `# ESearch: \`${term}\``,
-    '',
-    `Database **${db}** matched **${total.toLocaleString('en-US')}** records. Showing ${uids.length} starting at ${retstart}.`,
-    '',
-    queryTranslation ? `Query translated to: \`${queryTranslation}\`` : '',
-    translations.length > 0
-      ? [
-          '',
-          '## How terms were expanded',
-          '',
-          translations.map((t) => `- \`${t.from}\` → ${t.to}`).join('\n'),
-        ].join('\n')
-      : '',
-    '',
-    uids.length > 0 ? `## UIDs\n\n${uids.join(', ')}` : 'No UIDs returned for this page.',
-    '',
-    page.has_more
-      ? `More results available. Either call again with retstart=${page.next_offset}, or pass the history handle below to eutils_esummary / eutils_efetch.`
-      : 'This is the last page.',
-    history
-      ? [
-          '',
-          '## History handle',
-          '',
-          'Pass this object unchanged as the `history` argument of `eutils_esummary`, `eutils_efetch`, or `eutils_elink` to work with the whole result set.',
-          '',
-          '```json',
-          JSON.stringify(history),
-          '```',
-        ].join('\n')
-      : '',
-    '',
-    uids.length > 0
-      ? `Next: call \`eutils_esummary\` with db="${db}" and these UIDs to screen titles before fetching full records.`
-      : total > 0
-        ? 'Next: the page is empty but matches exist. Lower retstart.'
-        : 'Next: check the spelling with `eutils_espell`, or try `eutils_egquery` to find a database that has matches.',
-  ]
-    .filter((line) => line !== '')
-    .join('\n');
+  const markdown = countOnly
+    ? [
+        `# ESearch: \`${term}\``,
+        '',
+        `Database **${db}** matched **${total.toLocaleString('en-US')}** records.`,
+        '',
+        'Count-only request (rettype="count"); no UIDs were returned.',
+        '',
+        'Next: repeat the call without rettype, or with retmax greater than 0, to get UIDs.',
+      ].join('\n')
+    : [
+        `# ESearch: \`${term}\``,
+        '',
+        `Database **${db}** matched **${total.toLocaleString('en-US')}** records. Showing ${uids.length} starting at ${retstart}.`,
+        '',
+        queryTranslation ? `Query translated to: \`${queryTranslation}\`` : '',
+        translations.length > 0
+          ? [
+              '',
+              '## How terms were expanded',
+              '',
+              translations.map((t) => `- \`${t.from}\` → ${t.to}`).join('\n'),
+            ].join('\n')
+          : '',
+        '',
+        uids.length > 0 ? `## UIDs\n\n${uids.join(', ')}` : 'No UIDs returned for this page.',
+        '',
+        page.has_more
+          ? `More results available. Either call again with retstart=${page.next_offset}, or pass the history handle below to eutils_esummary / eutils_efetch.`
+          : 'This is the last page.',
+        history
+          ? [
+              '',
+              '## History handle',
+              '',
+              'Pass this object unchanged as the `history` argument of `eutils_esummary`, `eutils_efetch`, or `eutils_elink` to work with the whole result set.',
+              '',
+              '```json',
+              JSON.stringify(history),
+              '```',
+            ].join('\n')
+          : '',
+        '',
+        uids.length > 0
+          ? `Next: call \`eutils_esummary\` with db="${db}" and these UIDs to screen titles before fetching full records.`
+          : total > 0
+            ? 'Next: the page is empty but matches exist. Lower retstart.'
+            : 'Next: check the spelling with `eutils_espell`, or try `eutils_egquery` to find a database that has matches.',
+      ]
+        .filter((line) => line !== '')
+        .join('\n');
   return respond({ structured, markdown, format: input.response_format });
 }
 async function runEPost(
@@ -261,6 +300,9 @@ Boolean operators AND, OR, NOT must be uppercase.
 Args:
   - db (string): database to search, for example "pubmed".
   - term (string): Entrez query, for example "breast cancer AND 2008[pdat]".
+  - field (string, optional): restrict the whole term to one field, for example "title" or "tiab".
+  - idtype ("acc", optional): return accession.version identifiers instead of GI numbers for sequence databases.
+  - rettype ("uilist" | "count", optional): "count" returns only the total count and no UIDs.
   - retmax (number, optional): UIDs to return, 0-10000. Default 20. Use 0 for count only.
   - retstart (number, optional): index of the first UID. Default 0.
   - sort (string, optional): "pub_date", "Author", "JournalName", or "relevance" for PubMed; other databases differ.
@@ -272,12 +314,12 @@ Args:
   - response_format ('markdown' | 'json'): output format. Default 'markdown'.
 
 Returns:
-  { database, term, total, count, offset, has_more, next_offset,
+  { database, term, rettype, total, count, offset, has_more, next_offset,
     uids: string[], query_translation, term_translations: [{ from, to }], history? }
 
 Examples:
   - Use when: "find papers about CRISPR in Nature" -> db="pubmed", term="CRISPR AND nature[journal]"
-  - Use when: "how many records mention this gene?" -> retmax=0
+  - Use when: "how many records mention this gene?" -> retmax=0 or rettype="count"
   - Don't use when: you already have UIDs (use eutils_esummary or eutils_efetch)
   - Don't use when: you don't know which database (use eutils_egquery first)
 
