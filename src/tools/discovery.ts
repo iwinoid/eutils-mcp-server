@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { EUtilsError } from '../types.js';
+import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, respond, type ToolTextResult } from '../services/formatters.js';
 import { validateDatabase } from '../services/validate.js';
@@ -96,7 +96,7 @@ function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
 }
 
 async function runEInfo(client: EUtilsClient, input: z.infer<typeof EInfoInput>): Promise<ToolTextResult> {
-  const params: Record<string, unknown> = { retmode: 'json' };
+  const params: QueryParams = { retmode: 'json' };
   if (input.db) params['db'] = validateDatabase(input.db);
 
   const res = await client.request({ endpoint: 'einfo.fcgi', params });

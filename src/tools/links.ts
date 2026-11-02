@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { EUtilsError } from '../types.js';
+import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, respond, type ToolTextResult } from '../services/formatters.js';
 import { validateDatabase } from '../services/validate.js';
@@ -107,7 +107,7 @@ async function runELink(client: EUtilsClient, input: z.infer<typeof ELinkInput>)
     );
   }
 
-  const params: Record<string, unknown> = { dbfrom, db: dbto ?? dbfrom, retmode: 'json' };
+  const params: QueryParams = { dbfrom, db: dbto ?? dbfrom, retmode: 'json' };
   if (input.cmd) params['cmd'] = input.cmd;
   if (input.linkname) params['linkname'] = input.linkname;
   applySource(params, source, { setDb: false });

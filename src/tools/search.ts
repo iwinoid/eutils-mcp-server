@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { DEFAULT_RETMAX } from '../constants.js';
-import { EUtilsError } from '../types.js';
+import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, pageInfo, respond, type ToolTextResult } from '../services/formatters.js';
 import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
@@ -95,7 +95,7 @@ async function runESearch(
   const retstart = input.retstart ?? 0;
   const useHistory = input.usehistory ?? true;
 
-  const params: Record<string, unknown> = { db, term, retmax, retstart, retmode: 'json' };
+  const params: QueryParams = { db, term, retmax, retstart, retmode: 'json' };
   if (input.sort) params['sort'] = input.sort;
   if (input.datetype) params['datetype'] = input.datetype;
   if (input.mindate) params['mindate'] = input.mindate;

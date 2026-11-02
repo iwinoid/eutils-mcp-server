@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { BATCH_SIZE, DEFAULT_RETMAX, SEQUENCE_DATABASES } from '../constants.js';
-import { EUtilsError } from '../types.js';
+import { EUtilsError, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { chunk, validateRetmax } from '../services/validate.js';
@@ -158,7 +158,7 @@ async function runESummary(
   const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esummary');
 
   for (const batch of batches) {
-    const params: Record<string, unknown> = { retmode: 'json' };
+    const params: QueryParams = { retmode: 'json' };
     if (batch === null) {
       applySource(params, source);
       params['retstart'] = retstart;
@@ -241,7 +241,7 @@ async function runEFetch(client: EUtilsClient, input: z.infer<typeof EFetchInput
   const parts: string[] = [];
 
   for (const batch of batches) {
-    const params: Record<string, unknown> = { rettype, retmode };
+    const params: QueryParams = { rettype, retmode };
     if (batch === null) {
       applySource(params, source);
       params['retstart'] = retstart;

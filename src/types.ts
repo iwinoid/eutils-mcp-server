@@ -1,7 +1,12 @@
 /** Shared types for the E-utilities MCP server. */
 
+import type { EutilsParamName } from './services/eutilsParams.js';
+
 /**
  * A pointer to a UID set held on the NCBI History server.
+ *
+ * This is an external wire DTO: its field names mirror the History object the
+ * MCP client receives, so they intentionally stay snake_case.
  *
  * Travels through tool calls as an ordinary value. The server keeps no state,
  * so the model passes this back verbatim to continue a pipeline.
@@ -57,5 +62,5 @@ export class EUtilsError extends Error {
   }
 }
 
-/** One parameter of an E-utilities request. Values are stringified by the client. */
-export type QueryParams = Record<string, unknown>;
+/** One E-utilities wire parameter. Values are stringified by the client. */
+export type QueryParams = Partial<Record<EutilsParamName, string | number | boolean>>;

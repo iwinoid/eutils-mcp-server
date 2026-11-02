@@ -1,13 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { DEFAULT_RETMAX } from '../constants.js';
-import { EUtilsError, type HistoryRef } from '../types.js';
+import { EUtilsError, type HistoryRef, type QueryParams } from '../types.js';
 import type { EUtilsClient } from '../services/eutilsClient.js';
 import { errorResult, fenceUntrusted, respond, type ToolTextResult } from '../services/formatters.js';
 import { parseUids, validateDatabase, validateRetmax } from '../services/validate.js';
 import { parseXml } from '../services/xml.js';
 import { parseELink, parseEPost, parseESearch } from './parse.js';
-import { READ_ONLY_ANNOTATIONS, ResponseFormatSchema, requireTerm } from './common.js';
+import { ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
 import { defaultRetType } from './records.js';
 
 const SearchThenFetchInput = z.object({
@@ -234,7 +234,7 @@ async function runLinkThenFetch(
     ? await searchToHistory(client, dbfrom, requireTerm(input.term))
     : { count: 0, history: await postToHistory(client, dbfrom, parseUids(input.uids!)) };
 
-  const linkParams: Record<string, unknown> = {
+  const linkParams: QueryParams = {
     dbfrom,
     db: dbto,
     WebEnv: source.history.web_env,
@@ -343,7 +343,7 @@ Error Handling:
   - Reports the ESearch count so you can judge whether to page`,
       inputSchema: SearchThenFetchInput,
       outputSchema: SearchThenFetchOutput,
-      annotations: READ_ONLY_ANNOTATIONS,
+      annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
       try {
@@ -388,7 +388,7 @@ Error Handling:
   - Refuses retmax above 500`,
       inputSchema: LinkThenFetchInput,
       outputSchema: LinkThenFetchOutput,
-      annotations: READ_ONLY_ANNOTATIONS,
+      annotations: STATEFUL_ANNOTATIONS,
     },
     async (input) => {
       try {

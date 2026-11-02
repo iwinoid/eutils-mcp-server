@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { EUtilsError, type HistoryRef } from '../types.js';
+import { EUtilsError, type HistoryRef, type QueryParams } from '../types.js';
 import { parseUids, validateDatabase, validateHistory } from '../services/validate.js';
 
 /** Output format shared by every tool. */
@@ -45,11 +45,11 @@ export const READ_ONLY_ANNOTATIONS = {
 /**
  * Annotations for tools that create a set on the NCBI History server.
  *
- * Still read-only with respect to the local environment, but a repeat call
- * leaves an extra set behind, so idempotency is not claimed.
+ * They do not modify local files, but they do create remote state, so the
+ * read-only and idempotent hints are both false.
  */
 export const STATEFUL_ANNOTATIONS = {
-  readOnlyHint: true,
+  readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: false,
   openWorldHint: true,
@@ -115,7 +115,7 @@ export function resolveSource(
 
 /** Apply a resolved source to an E-utilities parameter set. */
 export function applySource(
-  params: Record<string, unknown>,
+  params: QueryParams,
   source: ResolvedSource,
   options: { setDb?: boolean } = {},
 ): void {

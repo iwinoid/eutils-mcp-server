@@ -25,6 +25,25 @@ export default tseslint.config(
     },
   },
   {
+    // Internal identifiers use TypeScript conventions. MCP protocol fields and
+    // NCBI wire properties keep their published spelling and are not renamed.
+    files: ['src/**/*.ts', 'test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/naming-convention': [
+        'error',
+        {
+          selector: 'variable',
+          format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
+          leadingUnderscore: 'allow',
+        },
+        { selector: 'function', format: ['camelCase', 'PascalCase'] },
+        { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
+        { selector: 'typeLike', format: ['PascalCase'] },
+        { selector: 'class', format: ['PascalCase'] },
+      ],
+    },
+  },
+  {
     // Scripts and tests run outside the published build and may log freely.
     files: ['scripts/**/*.mjs', 'test/**/*.ts'],
     rules: {
