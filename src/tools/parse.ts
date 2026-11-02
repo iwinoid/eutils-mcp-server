@@ -1,18 +1,6 @@
-/**
- * Pure parsers for E-utilities responses.
- *
- * Kept free of I/O so the response-shape logic — the layer where a wrong
- * envelope index silently yields empty results — can be unit tested against
- * captured NCBI fixtures.
- */
-
 import { EUtilsError, type HistoryRef } from '../types.js';
 import { asArray, textOf } from '../services/xml.js';
-
-/** Databases whose DocSums carry article metadata rather than sequence metadata. */
 const PUBMED = 'pubmed';
-
-/** Keys dropped from generic DocSums because they are verbose or internal. */
 const GENERIC_DROP = new Set([
   'references',
   'doccontriblist',
@@ -30,26 +18,21 @@ const GENERIC_DROP = new Set([
   'reportnumber',
   'publisherlocation',
 ]);
-
 const GENERIC_FIELD_LIMIT = 15;
-
 export interface CompactRecord {
   uid: string;
   [key: string]: unknown;
 }
-
 export interface EGQueryEntry {
   db: string;
   menu: string;
   count: number;
   status: string;
 }
-
 export interface TranslationEntry {
   from: string;
   to: string;
 }
-
 export interface ESearchParsed {
   total: number;
   uids: string[];
@@ -57,7 +40,6 @@ export interface ESearchParsed {
   translations: TranslationEntry[];
   history?: HistoryRef;
 }
-
 export interface LinkGroup {
   dbto: string;
   linkname: string;
@@ -66,20 +48,17 @@ export interface LinkGroup {
   scores?: (number | null)[];
   query_key?: string;
 }
-
 export interface AvailableLink {
   dbto: string;
   linkname: string;
   menu_tag?: string;
   html_tag?: string;
 }
-
 export interface LinkCheck {
   uid: string;
   has_linkout?: boolean;
   has_neighbor?: boolean;
 }
-
 export interface ProviderUrl {
   url: string;
   provider?: string;
@@ -87,12 +66,10 @@ export interface ProviderUrl {
   categories: string[];
   attributes: string[];
 }
-
 export interface ProviderLink {
   uid: string;
   urls: ProviderUrl[];
 }
-
 export interface ELinkParsed {
   groups: LinkGroup[];
   webEnv?: string;
@@ -101,8 +78,6 @@ export interface ELinkParsed {
   linkChecks: LinkCheck[];
   providerLinks: ProviderLink[];
 }
-
-/** Read a required top-level section out of a parsed JSON body. */
 export function requireSection<T>(json: unknown, key: string, endpoint: string): T {
   if (json === null || typeof json !== 'object') {
     throw new EUtilsError(
@@ -121,8 +96,6 @@ export function requireSection<T>(json: unknown, key: string, endpoint: string):
   }
   return section as T;
 }
-
-/** Build a History reference from the ESearch fields that carry it. */
 export function historyFrom(db: string, webEnv: unknown, queryKey: unknown): HistoryRef | undefined {
   if (typeof webEnv !== 'string' || webEnv.length === 0) return undefined;
   if (typeof queryKey !== 'string' && typeof queryKey !== 'number') return undefined;
@@ -130,13 +103,9 @@ export function historyFrom(db: string, webEnv: unknown, queryKey: unknown): His
   if (key.length === 0) return undefined;
   return { db, web_env: webEnv, query_key: key };
 }
-
-/** Parse an ESearch JSON body. */
 export function parseESearch(json: unknown, db: string, includeHistory: boolean): ESearchParsed {
   const root = requireSection<Record<string, unknown>>(json, 'esearchresult', 'ESearch');
-
   const history = includeHistory ? historyFrom(db, root['webenv'], root['querykey']) : undefined;
-
   return {
     total: Number(textOf(root['count'])) || 0,
     uids: asArray(root['idlist'])
@@ -150,8 +119,6 @@ export function parseESearch(json: unknown, db: string, includeHistory: boolean)
     ...(history ? { history } : {}),
   };
 }
-
-/** Reduce a PubMed DocSum to the fields a reader actually needs. */
 export function compactPubmed(uid: string, rec: Record<string, unknown>): CompactRecord {
   const articleIds = asArray(rec['articleids']) as Record<string, unknown>[];
   const findId = (type: string): string | undefined => {
@@ -159,10 +126,8 @@ export function compactPubmed(uid: string, rec: Record<string, unknown>): Compac
     const value = found ? textOf(found['value']) : '';
     return value.length > 0 ? value : undefined;
   };
-
   const doi = findId('doi');
   const pmcid = findId('pmc');
-
   return {
     uid,
     title: textOf(rec['title']),
@@ -185,16 +150,12 @@ export function compactPubmed(uid: string, rec: Record<string, unknown>): Compac
       .filter((t) => t.length > 0),
   };
 }
-
-/** Reduce a DocSum from any other database, keeping scalar fields only. */
 export function compactGeneric(uid: string, rec: Record<string, unknown>): CompactRecord {
   const out: CompactRecord = { uid };
   let taken = 0;
-
   for (const [key, value] of Object.entries(rec)) {
     if (taken >= GENERIC_FIELD_LIMIT) break;
     if (GENERIC_DROP.has(key)) continue;
-
     if (typeof value === 'string') {
       const trimmed = value.trim();
       if (trimmed.length === 0) continue;
@@ -202,7 +163,6 @@ export function compactGeneric(uid: string, rec: Record<string, unknown>): Compa
       taken += 1;
       continue;
     }
-
     if (Array.isArray(value) && value.every((entry) => typeof entry === 'string')) {
       const items = value.map((entry) => String(entry)).filter((entry) => entry.length > 0);
       if (items.length === 0) continue;
@@ -210,17 +170,19 @@ export function compactGeneric(uid: string, rec: Record<string, unknown>): Compa
       taken += 1;
     }
   }
-
   return out;
 }
-
-/** Parse an ESummary JSON body into compact records. */
-export function parseESummary(json: unknown, db: string): { uids: string[]; records: CompactRecord[] } {
+export function parseESummary(
+  json: unknown,
+  db: string,
+): {
+  uids: string[];
+  records: CompactRecord[];
+} {
   const root = requireSection<Record<string, unknown>>(json, 'result', 'ESummary');
   const uids = asArray(root['uids'])
     .map((uid) => textOf(uid))
     .filter((uid) => uid.length > 0);
-
   const records = uids.map((uid) => {
     const rec = root[uid];
     if (rec === null || typeof rec !== 'object') return { uid };
@@ -228,18 +190,14 @@ export function parseESummary(json: unknown, db: string): { uids: string[]; reco
       ? compactPubmed(uid, rec as Record<string, unknown>)
       : compactGeneric(uid, rec as Record<string, unknown>);
   });
-
   return { uids, records };
 }
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
-
 function recordOf(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
 }
-
 function readTextField(record: Record<string, unknown>, keys: readonly string[]): string {
   for (const key of keys) {
     const value = textOf(record[key]);
@@ -247,7 +205,6 @@ function readTextField(record: Record<string, unknown>, keys: readonly string[])
   }
   return '';
 }
-
 function readTextList(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.flatMap((item) => readTextList(item));
@@ -262,13 +219,11 @@ function readTextList(value: unknown): string[] {
   const text = textOf(value);
   return text.length > 0 ? [text] : [];
 }
-
 function ynBoolean(value: string): boolean | undefined {
   if (value === 'Y' || value === 'y') return true;
   if (value === 'N' || value === 'n') return false;
   return undefined;
 }
-
 function errorText(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -278,7 +233,6 @@ function errorText(value: unknown): string | undefined {
   if (!record) return undefined;
   return errorText(record['message']) ?? errorText(record['#text']) ?? errorText(record['error']);
 }
-
 function elinkErrorMessage(json: unknown): string | undefined {
   const root = recordOf(json);
   if (!root) return undefined;
@@ -292,12 +246,13 @@ function elinkErrorMessage(json: unknown): string | undefined {
   }
   return undefined;
 }
-
-function readLinks(value: unknown): { ids: string[]; scores?: (number | null)[] } {
+function readLinks(value: unknown): {
+  ids: string[];
+  scores?: (number | null)[];
+} {
   const ids: string[] = [];
   const scores: (number | null)[] = [];
   let scored = false;
-
   for (const item of asArray(value)) {
     const record = recordOf(item);
     if (!record) {
@@ -316,10 +271,8 @@ function readLinks(value: unknown): { ids: string[]; scores?: (number | null)[] 
     scores.push(Number.isFinite(score) ? score : null);
     scored = true;
   }
-
   return scored ? { ids, scores } : { ids };
 }
-
 function readAvailableLinks(
   linkset: Record<string, unknown>,
   links: AvailableLink[],
@@ -351,7 +304,6 @@ function readAvailableLinks(
     }
   }
 }
-
 function readLinkChecks(linkset: Record<string, unknown>, checks: LinkCheck[]): void {
   const checklist = recordOf(linkset['idchecklist']);
   if (!checklist) return;
@@ -373,7 +325,6 @@ function readLinkChecks(linkset: Record<string, unknown>, checks: LinkCheck[]): 
     });
   }
 }
-
 function readProviderLinks(linkset: Record<string, unknown>, links: ProviderLink[]): void {
   for (const value of asArray(linkset['idurllist'])) {
     const set = recordOf(value);
@@ -401,13 +352,6 @@ function readProviderLinks(linkset: Record<string, unknown>, links: ProviderLink
     if (urls.length > 0) links.push({ uid, urls });
   }
 }
-
-/**
- * Parse an ELink JSON body.
- *
- * `linksets` is an array at the top level; reading it as an object yields an
- * empty result and silently reports zero links.
- */
 export function parseELink(json: unknown): ELinkParsed {
   const failure = elinkErrorMessage(json);
   if (failure !== undefined) {
@@ -417,9 +361,7 @@ export function parseELink(json: unknown): ELinkParsed {
       'Check the cmd, dbfrom, db, linkname, and UID values, then retry. Use eutils_einfo to list databases and link names.',
     );
   }
-
   const linksets = asArray(requireSection<unknown>(json, 'linksets', 'ELink'));
-
   const groups: LinkGroup[] = [];
   const histories: HistoryRef[] = [];
   const availableLinks: AvailableLink[] = [];
@@ -427,14 +369,11 @@ export function parseELink(json: unknown): ELinkParsed {
   const providerLinks: ProviderLink[] = [];
   const seenLinks = new Set<string>();
   let webEnv: string | undefined;
-
   for (const value of linksets) {
     const linkset = recordOf(value);
     if (!linkset) continue;
-
     const setWebEnv = textOf(linkset['webenv']);
     if (setWebEnv.length > 0) webEnv = setWebEnv;
-
     for (const entryValue of asArray(linkset['linksetdbs'])) {
       const entry = recordOf(entryValue);
       if (!entry) continue;
@@ -447,7 +386,6 @@ export function parseELink(json: unknown): ELinkParsed {
         ...(scores !== undefined ? { scores } : {}),
       });
     }
-
     for (const entryValue of asArray(linkset['linksetdbhistories'])) {
       const entry = recordOf(entryValue);
       if (!entry) continue;
@@ -464,12 +402,10 @@ export function parseELink(json: unknown): ELinkParsed {
         histories.push({ db: dbto, web_env: webEnv, query_key: queryKey });
       }
     }
-
     readAvailableLinks(linkset, availableLinks, seenLinks);
     readLinkChecks(linkset, linkChecks);
     readProviderLinks(linkset, providerLinks);
   }
-
   return {
     groups,
     ...(webEnv ? { webEnv } : {}),
@@ -479,12 +415,9 @@ export function parseELink(json: unknown): ELinkParsed {
     providerLinks,
   };
 }
-
-/** Parse the EGQuery XML body, which reports a count per database. */
 export function parseEGQuery(xml: unknown): EGQueryEntry[] {
   const root = (xml as Record<string, unknown> | undefined)?.['eGQueryResult'] as
     Record<string, unknown> | undefined;
-
   return (asArray(root?.['ResultItem']) as Record<string, unknown>[])
     .map((item) => ({
       db: textOf(item['DbName']),
@@ -494,32 +427,29 @@ export function parseEGQuery(xml: unknown): EGQueryEntry[] {
     }))
     .filter((entry) => entry.db.length > 0);
 }
-
-/** Parse the ESpell XML body. */
 export function parseESpell(
   xml: unknown,
   fallbackTerm: string,
-): { query: string; corrected: string; changed: boolean } {
+): {
+  query: string;
+  corrected: string;
+  changed: boolean;
+} {
   const root = (xml as Record<string, unknown> | undefined)?.['eSpellResult'] as
     Record<string, unknown> | undefined;
-
   const query = textOf(root?.['Query']) || fallbackTerm;
   const corrected = textOf(root?.['CorrectedQuery']);
-
   return {
     query,
     corrected,
     changed: corrected.length > 0 && corrected.toLowerCase() !== query.toLowerCase(),
   };
 }
-
-/** Parse the EPost XML body and build its History reference. */
 export function parseEPost(xml: unknown, db: string): HistoryRef | undefined {
   const root = (xml as Record<string, unknown> | undefined)?.['ePostResult'] as
     Record<string, unknown> | undefined;
   return historyFrom(db, textOf(root?.['WebEnv']), textOf(root?.['QueryKey']));
 }
-
 export interface CitationMatch {
   input: string;
   journal: string;
@@ -531,22 +461,12 @@ export interface CitationMatch {
   pmid: string;
   matched: boolean;
 }
-
-/**
- * Parse ECitMatch's pipe-delimited output.
- *
- * The reply echoes each input line with the PMID appended as a seventh
- * field, so fields are read positionally from the left. NCBI normalises the
- * request's carriage returns to line feeds in the reply, but all three line
- * endings are accepted in case that changes.
- */
 export function parseECitMatch(body: string, inputs: readonly string[]): CitationMatch[] {
   const byKey = new Map<string, string>();
   for (const input of inputs) {
     const key = (input.split('|')[5] ?? '').trim();
     if (key.length > 0 && !byKey.has(key)) byKey.set(key, input);
   }
-
   return body
     .trim()
     .split(/\r\n|\r|\n/)

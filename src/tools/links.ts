@@ -22,7 +22,6 @@ import {
   STATEFUL_ANNOTATIONS,
   UidSourceShape,
 } from './common.js';
-
 const ELinkInput = z.object({
   dbfrom: z.string().min(1).describe('Source database holding the input UIDs, for example "pubmed".'),
   db: z
@@ -71,7 +70,6 @@ const ELinkInput = z.object({
     ),
   response_format: ResponseFormatSchema,
 });
-
 const ECitMatchInput = z.object({
   citations: z
     .array(z.string())
@@ -81,7 +79,6 @@ const ECitMatchInput = z.object({
     ),
   response_format: ResponseFormatSchema,
 });
-
 const ELinkOutput = z.looseObject({
   dbfrom: z.string(),
   dbto: z.string().optional(),
@@ -148,7 +145,6 @@ const ELinkOutput = z.looseObject({
     .optional()
     .describe('Present when cmd is neighbor_history.'),
 });
-
 const ECitMatchOutput = z.looseObject({
   submitted: z.number(),
   matched: z.number(),
@@ -164,12 +160,10 @@ const ECitMatchOutput = z.looseObject({
     }),
   ),
 });
-
 const LINK_NAME_PATTERN = /^[a-z0-9_]{1,64}$/;
 const HOLDING_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 const LINK_NAME_COMMANDS = new Set(['neighbor', 'neighbor_history']);
 const TERM_COMMANDS = new Set(['neighbor', 'neighbor_score', 'neighbor_history']);
-
 function validateLinkName(value: string): string {
   const linkname = value.trim();
   if (!LINK_NAME_PATTERN.test(linkname)) {
@@ -181,7 +175,6 @@ function validateLinkName(value: string): string {
   }
   return linkname;
 }
-
 function validateHolding(value: string): string {
   const holding = value.trim();
   if (!HOLDING_PATTERN.test(holding)) {
@@ -193,7 +186,6 @@ function validateHolding(value: string): string {
   }
   return holding;
 }
-
 interface ELinkReport {
   dbfrom: string;
   dbto?: string;
@@ -204,7 +196,6 @@ interface ELinkReport {
   providerLinks: readonly ProviderLink[];
   totalLinked: number;
 }
-
 function elinkHeading(report: ELinkReport): string {
   switch (report.command) {
     case 'acheck':
@@ -212,14 +203,11 @@ function elinkHeading(report: ELinkReport): string {
     case 'neighbor':
     case 'neighbor_score':
     case 'neighbor_history':
-      return `# ELink: \`${report.dbfrom}\`${
-        report.dbto && report.dbto !== report.dbfrom ? ` → \`${report.dbto}\`` : ' (same database)'
-      }`;
+      return `# ELink: \`${report.dbfrom}\`${report.dbto && report.dbto !== report.dbfrom ? ` → \`${report.dbto}\`` : ' (same database)'}`;
     default:
       return `# ELink ${report.command}: \`${report.dbfrom}\``;
   }
 }
-
 function elinkSummary(report: ELinkReport): string {
   switch (report.command) {
     case 'acheck': {
@@ -250,7 +238,6 @@ function elinkSummary(report: ELinkReport): string {
     }
   }
 }
-
 function elinkNextStep(report: ELinkReport): string {
   switch (report.command) {
     case 'acheck':
@@ -278,7 +265,6 @@ function elinkNextStep(report: ELinkReport): string {
       return `Next: pass these UIDs to \`eutils_esummary\` with db="${report.groups[0]?.dbto ?? report.dbfrom}".`;
   }
 }
-
 function groupBlock(group: LinkGroup): string {
   const header = `## ${group.linkname} → **${group.dbto}**`;
   if (group.query_key) {
@@ -294,7 +280,6 @@ function groupBlock(group: LinkGroup): string {
   const suffix = group.ids.length > 50 ? ` … (${group.ids.length} total)` : '';
   return `${header}\n\n${shown}${suffix}`;
 }
-
 function availableLinkBlock(links: readonly AvailableLink[]): string {
   const byDb = new Map<string, AvailableLink[]>();
   for (const link of links) {
@@ -311,7 +296,6 @@ function availableLinkBlock(links: readonly AvailableLink[]): string {
   }
   return ['## Available links', '', blocks.join('\n\n')].join('\n');
 }
-
 function linkCheckBlock(checks: readonly LinkCheck[], command: string): string {
   const heading = command === 'lcheck' ? '## LinkOut checks' : '## Neighbor checks';
   const rows = checks.map((check) => {
@@ -322,7 +306,6 @@ function linkCheckBlock(checks: readonly LinkCheck[], command: string): string {
   });
   return [heading, '', rows.join('\n')].join('\n');
 }
-
 function providerLinkBlock(links: readonly ProviderLink[]): string {
   const blocks = links.map((link) => {
     const items = link.urls.map((entry) => {
@@ -339,7 +322,6 @@ function providerLinkBlock(links: readonly ProviderLink[]): string {
   });
   return ['## Provider links', '', blocks.join('\n\n')].join('\n');
 }
-
 function historyBlock(histories: readonly HistoryRef[]): string {
   return [
     '## History handles',
@@ -347,7 +329,6 @@ function historyBlock(histories: readonly HistoryRef[]): string {
     histories.map((history) => `- \`${JSON.stringify(history)}\``).join('\n'),
   ].join('\n');
 }
-
 async function runELink(
   client: EUtilsClient,
   input: z.infer<typeof ELinkInput>,
@@ -357,7 +338,6 @@ async function runELink(
   const dbto = input.db ? validateDatabase(input.db) : undefined;
   const command = input.cmd ?? 'neighbor';
   const source = resolveSource(input, dbfrom);
-
   if (source.db !== dbfrom) {
     throw new EUtilsError(
       'validation',
@@ -365,9 +345,7 @@ async function runELink(
       'Pass a history object whose db equals dbfrom, or omit history and use uids.',
     );
   }
-
   const params: QueryParams = { dbfrom, retmode: 'json' };
-
   if (input.linkname !== undefined) {
     if (!LINK_NAME_COMMANDS.has(command)) {
       throw new EUtilsError(
@@ -378,7 +356,6 @@ async function runELink(
     }
     params['linkname'] = validateLinkName(input.linkname);
   }
-
   if (input.term !== undefined) {
     if (!TERM_COMMANDS.has(command)) {
       throw new EUtilsError(
@@ -396,7 +373,6 @@ async function runELink(
     }
     params['term'] = requireTerm(input.term);
   }
-
   if (input.holding !== undefined) {
     if (command !== 'llinks') {
       throw new EUtilsError(
@@ -407,7 +383,6 @@ async function runELink(
     }
     params['holding'] = validateHolding(input.holding);
   }
-
   if (input.idtype !== undefined) {
     if (input.idtype !== 'acc') {
       throw new EUtilsError(
@@ -418,7 +393,6 @@ async function runELink(
     }
     params['idtype'] = 'acc';
   }
-
   switch (command) {
     case 'acheck':
       if (dbto !== undefined) params['db'] = dbto;
@@ -453,17 +427,14 @@ async function runELink(
       }
       params['db'] = dbto ?? dbfrom;
   }
-
   if (input.cmd) params['cmd'] = input.cmd;
   applySource(params, source, { setDb: false });
-
   const res = await client.request({ endpoint: 'elink.fcgi', params, signal });
   const { groups, histories, availableLinks, linkChecks, providerLinks } = parseELink(res.json);
   const totalLinked = groups.reduce((sum, group) => sum + group.count, 0);
   const storedGroups = groups.filter((group) => group.query_key !== undefined).length;
   const hasResults =
     groups.length > 0 || availableLinks.length > 0 || linkChecks.length > 0 || providerLinks.length > 0;
-
   const report: ELinkReport = {
     dbfrom,
     ...(dbto !== undefined ? { dbto } : {}),
@@ -474,7 +445,6 @@ async function runELink(
     providerLinks,
     totalLinked,
   };
-
   const structured = {
     dbfrom,
     ...(dbto !== undefined ? { dbto } : {}),
@@ -488,7 +458,6 @@ async function runELink(
     ...(providerLinks.length > 0 ? { provider_links: providerLinks } : {}),
     ...(histories.length > 0 ? { histories } : {}),
   };
-
   const blocks: string[] = [elinkHeading(report), elinkSummary(report)];
   if (groups.length > 0) blocks.push(groups.map((group) => groupBlock(group)).join('\n\n'));
   if (availableLinks.length > 0) blocks.push(availableLinkBlock(availableLinks));
@@ -502,10 +471,8 @@ async function runELink(
   }
   const nextStep = elinkNextStep(report);
   if (nextStep.length > 0) blocks.push(nextStep);
-
   return respond({ structured, markdown: blocks.join('\n\n'), format: input.response_format });
 }
-
 async function runECitMatch(
   client: EUtilsClient,
   input: z.infer<typeof ECitMatchInput>,
@@ -514,7 +481,6 @@ async function runECitMatch(
   const cleaned = input.citations
     .map((citation) => citation.trim())
     .filter((citation) => citation.length > 0);
-
   if (cleaned.length === 0) {
     throw new EUtilsError(
       'validation',
@@ -537,7 +503,6 @@ async function runECitMatch(
       'Shorten the citation fields; each one should be a single line.',
     );
   }
-
   const malformed = cleaned.filter((citation) => citation.split('|').length < 6);
   if (malformed.length > 0) {
     throw new EUtilsError(
@@ -546,27 +511,20 @@ async function runECitMatch(
       'Each citation needs five pipe-separated fields plus a key: journal|year|volume|first_page|author|key|.',
     );
   }
-
-  // NCBI wants the citation strings separated by carriage returns.
   const bdata = cleaned.map((citation) => (citation.endsWith('|') ? citation : `${citation}|`)).join('\r');
-
   const res = await client.request({
     endpoint: 'ecitmatch.cgi',
     params: { db: 'pubmed', rettype: 'xml', retmode: 'xml', bdata },
     method: 'POST',
     signal,
   });
-
   const records = parseECitMatch(res.text, cleaned);
-
   const matched = records.filter((record) => record.matched);
-
   const structured = {
     submitted: cleaned.length,
     matched: matched.length,
     records,
   };
-
   const markdown = [
     `# ECitMatch: ${matched.length} of ${cleaned.length} citation(s) resolved`,
     '',
@@ -582,11 +540,8 @@ async function runECitMatch(
       ? `Next: call \`eutils_esummary\` with db="pubmed" and uids=[${matched.map((r) => `"${r.pmid}"`).join(', ')}].`
       : 'Next: check the citation fields. Volume, first page, and author surname must match the published record.',
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
-/** Register ELink and ECitMatch. */
 export function registerLinkTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_elink',
@@ -642,7 +597,6 @@ Error Handling:
       }
     },
   );
-
   server.registerTool(
     'eutils_ecitmatch',
     {

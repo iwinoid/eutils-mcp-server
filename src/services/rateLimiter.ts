@@ -1,27 +1,15 @@
 import { RATE_LIMIT_WITH_KEY, RATE_LIMIT_WITHOUT_KEY } from '../constants.js';
-
-/** Injectable time source, so rate-limit behaviour is testable without waiting. */
 export interface Clock {
   now(): number;
   sleep(ms: number): Promise<void>;
 }
-
 export const systemClock: Clock = {
   now: () => Date.now(),
   sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
-
-/**
- * Token bucket shared by every outbound request, including internal batches.
- *
- * NCBI allows 3 requests/second per IP without an API key and 10 with one.
- * Exceeding the limit gets the whole IP blocked, so all traffic funnels
- * through a single bucket.
- */
 export class TokenBucket {
   private tokens: number;
   private lastRefill: number;
-
   constructor(
     readonly ratePerSecond: number,
     private readonly capacity: number = ratePerSecond,
@@ -30,8 +18,6 @@ export class TokenBucket {
     this.tokens = capacity;
     this.lastRefill = clock.now();
   }
-
-  /** Resolve once a token is available, sleeping when the bucket is empty. */
   async acquire(signal?: AbortSignal): Promise<void> {
     for (;;) {
       if (signal?.aborted) throw abortError();
@@ -39,25 +25,21 @@ export class TokenBucket {
       const elapsedSeconds = Math.max(0, now - this.lastRefill) / 1000;
       this.tokens = Math.min(this.capacity, this.tokens + elapsedSeconds * this.ratePerSecond);
       this.lastRefill = now;
-
       if (this.tokens >= 1) {
         this.tokens -= 1;
         return;
       }
-
       const deficit = 1 - this.tokens;
       const waitMs = Math.max(1, Math.ceil((deficit / this.ratePerSecond) * 1000));
       await sleepWithSignal(this.clock, waitMs, signal);
     }
   }
 }
-
 function abortError(): Error {
   const error = new Error('The request was cancelled.');
   error.name = 'AbortError';
   return error;
 }
-
 function sleepWithSignal(clock: Clock, ms: number, signal?: AbortSignal): Promise<void> {
   if (!signal) return clock.sleep(ms);
   if (signal.aborted) return Promise.reject(abortError());
@@ -74,12 +56,6 @@ function sleepWithSignal(clock: Clock, ms: number, signal?: AbortSignal): Promis
     signal.addEventListener('abort', onAbort, { once: true });
   });
 }
-
-/**
- * Build the bucket appropriate to the credentials in play.
- *
- * An API key raises the ceiling from 3 to 10 requests/second.
- */
 export function createRateLimiter(apiKey: string | undefined, clock: Clock = systemClock): TokenBucket {
   const rate = apiKey ? RATE_LIMIT_WITH_KEY : RATE_LIMIT_WITHOUT_KEY;
   return new TokenBucket(rate, rate, clock);

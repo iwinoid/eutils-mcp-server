@@ -1,22 +1,11 @@
 #!/usr/bin/env node
-/**
- * Protocol-level smoke test for the E-utilities MCP server.
- *
- * Spawns the built server over stdio, speaks raw JSON-RPC to it, and checks
- * that every tool is listed and that a real search round-trips to NCBI.
- *
- * Usage: node scripts/verify-server.mjs [--live]
- */
-
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = join(here, '..', 'dist', 'index.js');
 const live = process.argv.includes('--live');
 const PROTOCOL_VERSION = '2025-11-25';
-
 const EXPECTED_TOOLS = [
   'eutils_einfo',
   'eutils_esearch',
@@ -30,20 +19,16 @@ const EXPECTED_TOOLS = [
   'eutils_search_then_fetch',
   'eutils_link_then_fetch',
 ];
-
 const child = spawn(process.execPath, [entry], {
   stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, NCBI_EMAIL: process.env.NCBI_EMAIL ?? 'eutils-mcp-server@example.com' },
 });
-
 let stderr = '';
 child.stderr.on('data', (chunk) => {
   stderr += chunk.toString();
 });
-
 let buffer = '';
 const pending = new Map();
-
 child.stdout.on('data', (chunk) => {
   buffer += chunk.toString();
   let index;
@@ -65,9 +50,7 @@ child.stdout.on('data', (chunk) => {
     }
   }
 });
-
 let nextId = 1;
-
 function send(method, params) {
   const id = nextId++;
   const payload = JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n';
@@ -79,16 +62,13 @@ function send(method, params) {
         pending.delete(id);
         reject(new Error(`timeout waiting for ${method}`));
       }
-    }, 60_000);
+    }, 60000);
   });
 }
-
 function notify(method, params) {
   child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n');
 }
-
 const failures = [];
-
 function check(label, condition, detail) {
   if (condition) {
     console.log(`  PASS  ${label}`);
@@ -97,14 +77,12 @@ function check(label, condition, detail) {
     failures.push(label);
   }
 }
-
 function textOf(result) {
   return (result?.content ?? [])
     .filter((block) => block.type === 'text')
     .map((block) => block.text)
     .join('\n');
 }
-
 try {
   console.log('MCP handshake');
   const init = await send('initialize', {
@@ -127,7 +105,6 @@ try {
     'the server publishes usage instructions',
     typeof init?.instructions === 'string' && init.instructions.includes('untrusted'),
   );
-
   console.log('\nTool listing');
   const list = await send('tools/list', {});
   const names = (list?.tools ?? []).map((tool) => tool.name);
@@ -139,7 +116,6 @@ try {
   for (const expected of EXPECTED_TOOLS) {
     check(`tool present: ${expected}`, names.includes(expected));
   }
-
   const everyTool = (list?.tools ?? []).every(
     (tool) =>
       typeof tool.description === 'string' &&
@@ -149,7 +125,6 @@ try {
       tool.annotations?.openWorldHint === true,
   );
   check('every tool has a description, an input schema, and safe annotations', everyTool);
-
   console.log('\nTool calls');
   const badDb = await send('tools/call', {
     name: 'eutils_esearch',
@@ -160,7 +135,6 @@ try {
     badDb.isError === true && /not a valid Entrez database name/.test(textOf(badDb)),
     textOf(badDb).slice(0, 200),
   );
-
   if (live) {
     console.log('\nLive NCBI calls');
     const einfo = await send('tools/call', { name: 'eutils_einfo', arguments: {} });
@@ -170,7 +144,6 @@ try {
       !einfo.isError && einfoText.includes('Entrez databases'),
       einfoText.slice(0, 200),
     );
-
     const search = await send('tools/call', {
       name: 'eutils_esearch',
       arguments: { db: 'pubmed', term: 'science[journal] AND breast cancer AND 2008[pdat]', retmax: 3 },
@@ -183,7 +156,6 @@ try {
       searchText.slice(0, 300),
     );
     check('eutils_esearch returns a history handle', /"web_env"/.test(searchText), searchText.slice(-300));
-
     const summary = await send('tools/call', {
       name: 'eutils_esummary',
       arguments: { db: 'pubmed', uids: ['31452104'] },
@@ -193,7 +165,6 @@ try {
       !summary.isError && /Molegro Virtual Docker/.test(textOf(summary)),
       textOf(summary).slice(0, 300),
     );
-
     const fetched = await send('tools/call', {
       name: 'eutils_efetch',
       arguments: { db: 'protein', uids: ['NP_005537.3'], rettype: 'fasta' },
@@ -212,7 +183,6 @@ try {
 } finally {
   child.kill();
 }
-
 if (stderr.trim().length > 0) {
   console.log('\nServer stderr:');
   console.log(
@@ -223,6 +193,5 @@ if (stderr.trim().length > 0) {
       .join('\n'),
   );
 }
-
 console.log(`\n${failures.length === 0 ? 'ALL CHECKS PASSED' : `${failures.length} CHECK(S) FAILED`}`);
 process.exit(failures.length === 0 ? 0 : 1);

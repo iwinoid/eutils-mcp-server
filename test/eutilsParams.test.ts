@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { EUTILS_PARAM } from '../src/services/eutilsParams.js';
-
 describe('NCBI wire parameters', () => {
   it('keeps the exact upstream spelling and case', () => {
     expect(EUTILS_PARAM).toEqual({

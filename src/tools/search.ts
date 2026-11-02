@@ -14,7 +14,6 @@ import {
 import { parseXml } from '../services/xml.js';
 import { parseEPost, parseESearch } from './parse.js';
 import { HistorySchema, ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
-
 const ESearchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed" or "protein".'),
   term: z
@@ -28,7 +27,7 @@ const ESearchInput = z.object({
     .int()
     .min(0)
     .max(
-      10_000,
+      10000,
       'retmax must be 10000 or fewer. Use retmax=0 for a count only, or keep the set on the History server and page with retstart.',
     )
     .optional()
@@ -65,7 +64,6 @@ const ESearchInput = z.object({
   ),
   response_format: ResponseFormatSchema,
 });
-
 const EPostInput = z.object({
   db: z.string().min(1).describe('Entrez database the UIDs belong to, for example "pubmed".'),
   uids: z
@@ -80,13 +78,11 @@ const EPostInput = z.object({
     ),
   response_format: ResponseFormatSchema,
 });
-
 const HistoryOutput = z.looseObject({
   db: z.string().describe('Database the set belongs to.'),
   web_env: z.string().describe('WebEnv cookie for the History server.'),
   query_key: z.string().describe('Query key inside that web environment.'),
 });
-
 const ESearchOutput = z.looseObject({
   database: z.string(),
   term: z.string(),
@@ -100,13 +96,11 @@ const ESearchOutput = z.looseObject({
   term_translations: z.array(z.looseObject({ from: z.string(), to: z.string() })),
   history: HistoryOutput.optional().describe('Present when usehistory is true.'),
 });
-
 const EPostOutput = z.looseObject({
   database: z.string(),
   uploaded: z.number(),
   history: HistoryOutput,
 });
-
 async function runESearch(
   client: EUtilsClient,
   input: z.infer<typeof ESearchInput>,
@@ -117,7 +111,6 @@ async function runESearch(
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esearch');
   const retstart = input.retstart ?? 0;
   const historyRef = input.history ? validateHistory(input.history) : undefined;
-
   if (historyRef !== undefined && historyRef.db !== db) {
     throw new EUtilsError(
       'validation',
@@ -139,9 +132,7 @@ async function runESearch(
       'Pass datetype ("pdat", "edat", or "mdat") alongside reldate.',
     );
   }
-
   const useHistory = historyRef !== undefined ? true : (input.usehistory ?? true);
-
   const params: QueryParams = { db, term, retmax, retstart, retmode: 'json' };
   if (historyRef !== undefined) {
     params['WebEnv'] = historyRef.web_env;
@@ -153,10 +144,8 @@ async function runESearch(
   if (input.maxdate) params['maxdate'] = input.maxdate;
   if (input.reldate !== undefined) params['reldate'] = input.reldate;
   if (useHistory) params['usehistory'] = 'y';
-
   const res = await client.request({ endpoint: 'esearch.fcgi', params, signal });
   const { total, uids, queryTranslation, translations, history } = parseESearch(res.json, db, useHistory);
-
   const page = pageInfo(total, uids.length, retstart);
   const structured = {
     database: db,
@@ -167,7 +156,6 @@ async function runESearch(
     term_translations: translations,
     ...(history ? { history } : {}),
   };
-
   const markdown = [
     `# ESearch: \`${term}\``,
     '',
@@ -209,10 +197,8 @@ async function runESearch(
   ]
     .filter((line) => line !== '')
     .join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
 async function runEPost(
   client: EUtilsClient,
   input: z.infer<typeof EPostInput>,
@@ -221,18 +207,13 @@ async function runEPost(
   const db = validateDatabase(input.db);
   const uids = parseUids(input.uids);
   const webEnv = input.web_env !== undefined ? validateWebEnv(input.web_env) : undefined;
-
-  // EPost answers JSON requests with HTTP 500, so the request stays XML and
-  // is parsed locally.
   const params: QueryParams = { db, id: uids.join(',') };
   if (webEnv !== undefined) params['WebEnv'] = webEnv;
-
   const res = await client.request({
     endpoint: 'epost.fcgi',
     params,
     signal,
   });
-
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
     throw new EUtilsError(
@@ -241,9 +222,7 @@ async function runEPost(
       'Retry. If it persists, validate the UIDs with eutils_esearch first.',
     );
   }
-
   const history = parseEPost(parsed, db);
-
   if (!history) {
     throw new EUtilsError(
       'upstream',
@@ -251,9 +230,7 @@ async function runEPost(
       'Verify the UIDs exist in this database, then retry.',
     );
   }
-
   const structured = { database: db, uploaded: uids.length, history };
-
   const markdown = [
     `# EPost: uploaded ${uids.length} UID(s) to \`${db}\``,
     '',
@@ -265,11 +242,8 @@ async function runEPost(
     '',
     'Next: pass this object as the `history` argument of `eutils_esummary`, `eutils_efetch`, `eutils_elink`, or `eutils_esearch` (`term="%23<query_key> AND ..."`).',
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
-/** Register ESearch and EPost. */
 export function registerSearchTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_esearch',
@@ -323,7 +297,6 @@ Error Handling:
       }
     },
   );
-
   server.registerTool(
     'eutils_epost',
     {

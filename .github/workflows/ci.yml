@@ -7,7 +7,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# A newer push supersedes an in-flight run on the same ref.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -71,15 +70,11 @@ jobs:
           cache: npm
 
       - name: Check for known runtime vulnerabilities
-        # Block on runtime advisories. Dev-only advisories are tracked in the
-        # audit report and do not ship in dist/.
         run: npm audit --omit=dev --audit-level=high
 
   verify-evals:
     name: Evaluation answers
     runs-on: ubuntu-latest
-    # The verifier calls live NCBI endpoints, so it runs only on manual dispatch
-    # or on main. Pull requests and forks stay off the shared NCBI quota.
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v7

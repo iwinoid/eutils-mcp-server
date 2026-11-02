@@ -1,23 +1,9 @@
-/** Shared types for the E-utilities MCP server. */
-
 import type { EutilsParamName } from './services/eutilsParams.js';
-
-/**
- * A pointer to a UID set held on the NCBI History server.
- *
- * This is an external wire DTO: its field names mirror the History object the
- * MCP client receives, so they intentionally stay snake_case.
- *
- * Travels through tool calls as an ordinary value. The server keeps no state,
- * so the model passes this back verbatim to continue a pipeline.
- */
 export interface HistoryRef {
   db: string;
   web_env: string;
   query_key: string;
 }
-
-/** Standard pagination envelope returned by every listing tool. */
 export interface PageInfo {
   total: number;
   count: number;
@@ -25,10 +11,7 @@ export interface PageInfo {
   has_more: boolean;
   next_offset?: number;
 }
-
 export type ResponseFormat = 'markdown' | 'json';
-
-/** Failure categories that map to different advice for the model. */
 export type EUtilsErrorKind =
   | 'validation'
   | 'rate_limit'
@@ -39,29 +22,17 @@ export type EUtilsErrorKind =
   | 'parse'
   | 'cancelled'
   | 'history_expired';
-
-/**
- * An error carrying a machine-readable kind plus a suggested next step.
- *
- * `message` is always safe to show: the API key is redacted before any
- * EUtilsError is constructed.
- */
 export class EUtilsError extends Error {
   readonly kind: EUtilsErrorKind;
   readonly suggestion: string;
-
   constructor(kind: EUtilsErrorKind, message: string, suggestion: string) {
     super(message);
     this.name = 'EUtilsError';
     this.kind = kind;
     this.suggestion = suggestion;
   }
-
-  /** Render as a single actionable line for the model. */
   toToolText(): string {
     return `Error (${this.kind}): ${this.message}\nSuggested next step: ${this.suggestion}`;
   }
 }
-
-/** One E-utilities wire parameter. Values are stringified by the client. */
 export type QueryParams = Partial<Record<EutilsParamName, string | number | boolean>>;

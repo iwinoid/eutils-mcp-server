@@ -16,7 +16,6 @@ import {
   ResponseFormatSchema,
   UidSourceShape,
 } from './common.js';
-
 const ESummaryInput = z.object({
   db: z
     .string()
@@ -40,7 +39,6 @@ const ESummaryInput = z.object({
     ),
   response_format: ResponseFormatSchema,
 });
-
 const EFetchInput = z.object({
   db: z
     .string()
@@ -97,7 +95,6 @@ const EFetchInput = z.object({
     .describe(`Maximum records to return when using history (default ${DEFAULT_RETMAX}, max ${BATCH_SIZE}).`),
   response_format: ResponseFormatSchema,
 });
-
 const ESummaryOutput = z.looseObject({
   database: z.string(),
   total: z
@@ -113,7 +110,6 @@ const ESummaryOutput = z.looseObject({
   batches: z.number().optional().describe('Present when the UID list needed more than one request.'),
   records: z.array(z.looseObject({ uid: z.string(), title: z.string().optional() })),
 });
-
 const EFetchOutput = z.looseObject({
   database: z.string(),
   rettype: z.string(),
@@ -122,30 +118,24 @@ const EFetchOutput = z.looseObject({
   batches: z.number().optional(),
   text: z.string().describe('Raw record text. The markdown rendering fences it as external data.'),
 });
-
 function renderRecordMarkdown(record: CompactRecord, index: number): string {
   const title = typeof record['title'] === 'string' ? record['title'] : '(no title)';
   const lines = [`### ${index + 1}. ${title}`, '', `- **UID**: ${record['uid']}`];
-
   const authors = record['authors'];
   if (Array.isArray(authors) && authors.length > 0) {
     const shown = authors.slice(0, 6).join(', ');
     lines.push(`- **Authors**: ${shown}${authors.length > 6 ? `, et al. (${authors.length} total)` : ''}`);
   }
-
   for (const key of ['journal', 'pubdate', 'volume', 'issue', 'pages', 'doi', 'pmcid']) {
     const value = record[key];
     if (typeof value === 'string' && value.length > 0) {
       lines.push(`- **${key}**: ${value}`);
     }
   }
-
   const pubtype = record['pubtype'];
   if (Array.isArray(pubtype) && pubtype.length > 0) {
     lines.push(`- **Type**: ${pubtype.join('; ')}`);
   }
-
-  // Any remaining scalar fields, for non-PubMed databases.
   const known = new Set([
     'uid',
     'title',
@@ -166,10 +156,8 @@ function renderRecordMarkdown(record: CompactRecord, index: number): string {
     if (typeof value === 'string') lines.push(`- **${key}**: ${value}`);
     else if (Array.isArray(value)) lines.push(`- **${key}**: ${value.join('; ')}`);
   }
-
   return lines.join('\n');
 }
-
 async function runESummary(
   client: EUtilsClient,
   input: z.infer<typeof ESummaryInput>,
@@ -178,13 +166,10 @@ async function runESummary(
   const source = resolveDbAndSource(input);
   const db = source.db;
   const retstart = input.retstart ?? 0;
-
   const batches =
     source.id !== undefined ? chunk(source.id.split(','), BATCH_SIZE) : [null as string[] | null];
-
   const allRecords: CompactRecord[] = [];
   const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'esummary');
-
   for (const batch of batches) {
     const params: QueryParams = { retmode: 'json' };
     if (batch === null) {
@@ -195,18 +180,15 @@ async function runESummary(
       params['db'] = db;
       params['id'] = batch.join(',');
     }
-
     const res = await client.request({ endpoint: 'esummary.fcgi', params, signal });
     const { records } = parseESummary(res.json, db);
     allRecords.push(...records);
   }
-
   const offset = source.id !== undefined ? 0 : retstart;
   const count = allRecords.length;
   const total = source.id !== undefined ? count : undefined;
   const hasMore = source.id === undefined && pageSize > 0 && count === pageSize;
   const nextOffset = hasMore ? retstart + count : undefined;
-
   const structured = {
     database: db,
     ...(total !== undefined ? { total } : {}),
@@ -217,7 +199,6 @@ async function runESummary(
     ...(batches.length > 1 ? { batches: batches.length } : {}),
     records: allRecords,
   };
-
   const markdown = [
     `# ESummary: ${allRecords.length} summary record(s) from \`${db}\``,
     '',
@@ -238,10 +219,8 @@ async function runESummary(
   ]
     .filter((line) => line !== '')
     .join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
 async function runEFetch(
   client: EUtilsClient,
   input: z.infer<typeof EFetchInput>,
@@ -259,9 +238,7 @@ async function runEFetch(
   const retstart = input.retstart ?? 0;
   const pageSize = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
   const singleRecord = source.id !== undefined ? source.count === 1 : pageSize === 1;
-
   const batches = source.id !== undefined ? chunk(source.id.split(','), BATCH_SIZE) : [null];
-
   const parts: string[] = [];
   const formatParams: QueryParams = {};
   if (format.rettype !== undefined) formatParams[EUTILS_PARAM.retType] = format.rettype;
@@ -270,7 +247,6 @@ async function runEFetch(
   if (sequence.seq_start !== undefined) formatParams[EUTILS_PARAM.seqStart] = sequence.seq_start;
   if (sequence.seq_stop !== undefined) formatParams[EUTILS_PARAM.seqStop] = sequence.seq_stop;
   if (sequence.complexity !== undefined) formatParams[EUTILS_PARAM.complexity] = sequence.complexity;
-
   for (const batch of batches) {
     const params: QueryParams = { ...formatParams };
     if (batch === null) {
@@ -281,10 +257,8 @@ async function runEFetch(
       params['db'] = db;
       params['id'] = batch.join(',');
     }
-
     const res = await client.request({ endpoint: 'efetch.fcgi', params, signal });
     const body = res.text.trim();
-
     if (/^error[:\s]/i.test(body)) {
       throw new EUtilsError(
         'validation',
@@ -292,13 +266,10 @@ async function runEFetch(
         'Check that the UIDs exist in this database and that rettype is valid for it. Use eutils_einfo to inspect the database.',
       );
     }
-
     if (body.length > 0) parts.push(body);
   }
-
   const body = parts.join('\n\n');
   const recordCount = source.id !== undefined ? source.count : undefined;
-
   const structured = {
     database: db,
     rettype: format.rettype ?? 'default',
@@ -307,7 +278,6 @@ async function runEFetch(
     ...(batches.length > 1 ? { batches: batches.length } : {}),
     text: body,
   };
-
   const markdown = [
     `# EFetch: \`${db}\` records (${format.label})`,
     '',
@@ -317,14 +287,10 @@ async function runEFetch(
       ? 'Next: use `eutils_elink` to find records in other databases linked to these.'
       : 'Next: confirm the UIDs with `eutils_esearch` in the same database.',
   ].join('\n');
-
   return respond({
     structured,
     markdown,
     format: input.response_format,
-    // A single record larger than the limit cannot be paged with retstart,
-    // which moves between records, not within one. Keep head and tail so the
-    // abstract and conclusions survive, and say so instead of promising paging.
     ...(singleRecord
       ? {
           truncate: {
@@ -338,8 +304,6 @@ async function runEFetch(
       : {}),
   });
 }
-
-/** Register ESummary and EFetch. */
 export function registerRecordTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_esummary',
@@ -388,7 +352,6 @@ Error Handling:
       }
     },
   );
-
   server.registerTool(
     'eutils_efetch',
     {
@@ -443,5 +406,4 @@ Error Handling:
     },
   );
 }
-
 export { HistorySchema };

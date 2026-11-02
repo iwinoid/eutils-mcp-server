@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createHarness, json } from './toolHarness.js';
-
 const harness = createHarness(() => json({}));
-
 function annotations(name: string): Record<string, unknown> {
   const config = harness.configs.get(name);
   if (!config) throw new Error('missing tool ' + name);
   return config.annotations as Record<string, unknown>;
 }
-
 describe('MCP tool annotations', () => {
   it('marks tools that create NCBI History sets as stateful', () => {
     for (const name of [
@@ -26,7 +23,6 @@ describe('MCP tool annotations', () => {
       });
     }
   });
-
   it('marks pure read tools as read-only and idempotent', () => {
     for (const name of [
       'eutils_einfo',

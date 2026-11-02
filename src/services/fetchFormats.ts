@@ -1,24 +1,20 @@
 import { SEQUENCE_DATABASES } from '../constants.js';
 import { EUtilsError } from '../types.js';
-
 export interface FetchFormat {
   rettype?: string;
   retmode?: string;
   label: string;
 }
-
 export interface SequenceOptions {
   strand?: number;
   seq_start?: number;
   seq_stop?: number;
   complexity?: number;
 }
-
 const PUBMED_FORMAT: FetchFormat = { rettype: 'abstract', retmode: 'text', label: 'abstract/text' };
 const SEQUENCE_FORMAT: FetchFormat = { rettype: 'fasta', retmode: 'text', label: 'fasta/text' };
 const PMC_TEXT_FORMAT: FetchFormat = { rettype: 'medline', retmode: 'text', label: 'medline/text' };
 const NATIVE_FORMAT: FetchFormat = { label: 'the database default format' };
-
 export function resolveFetchFormat(
   db: string,
   rettype: string | undefined,
@@ -26,7 +22,6 @@ export function resolveFetchFormat(
 ): FetchFormat {
   const requestedType = rettype !== undefined && rettype.length > 0 ? rettype : undefined;
   const requestedMode = retmode !== undefined && retmode.length > 0 ? retmode : undefined;
-
   if (requestedMode === 'asn.1' && SEQUENCE_DATABASES.includes(db)) {
     throw new EUtilsError(
       'validation',
@@ -34,28 +29,23 @@ export function resolveFetchFormat(
       'Use retmode="xml" or rettype="fasta"/"gb" for sequence records. Text ASN.1 is available only for non-sequence databases.',
     );
   }
-
   if (requestedType !== undefined) {
     const mode = requestedMode ?? 'text';
     return { rettype: requestedType, retmode: mode, label: `${requestedType}/${mode}` };
   }
-
   if (requestedMode === 'text') {
     if (db === 'pubmed') return PUBMED_FORMAT;
     if (SEQUENCE_DATABASES.includes(db)) return SEQUENCE_FORMAT;
     if (db === 'pmc') return PMC_TEXT_FORMAT;
     return { retmode: 'text', label: 'text' };
   }
-
   if (requestedMode !== undefined) {
     return { retmode: requestedMode, label: requestedMode };
   }
-
   if (db === 'pubmed') return PUBMED_FORMAT;
   if (SEQUENCE_DATABASES.includes(db)) return SEQUENCE_FORMAT;
   return NATIVE_FORMAT;
 }
-
 export function resolveSequenceOptions(db: string, options: SequenceOptions): SequenceOptions {
   const requested =
     options.strand !== undefined ||
@@ -63,7 +53,6 @@ export function resolveSequenceOptions(db: string, options: SequenceOptions): Se
     options.seq_stop !== undefined ||
     options.complexity !== undefined;
   if (!requested) return {};
-
   if (!SEQUENCE_DATABASES.includes(db)) {
     throw new EUtilsError(
       'validation',

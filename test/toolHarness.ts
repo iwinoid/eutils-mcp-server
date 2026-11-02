@@ -1,19 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { EUtilsClient, EUtilsResponse } from '../src/services/eutilsClient.js';
 import { registerAllTools } from '../src/tools/registry.js';
-
 export interface RecordedRequest {
   endpoint: string;
   params: Record<string, unknown>;
   signal?: AbortSignal;
 }
-
 export interface ToolHarness {
   call(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<any>;
   calls: RecordedRequest[];
   configs: Map<string, any>;
 }
-
 export function createHarness(
   router: (req: RecordedRequest) => EUtilsResponse | Promise<EUtilsResponse>,
 ): ToolHarness {
@@ -49,11 +46,9 @@ export function createHarness(
     },
   };
 }
-
 export function json(body: unknown, status = 200): EUtilsResponse {
   return { status, contentType: 'application/json', text: JSON.stringify(body), json: body };
 }
-
 export function text(body: string, status = 200, contentType = 'text/plain'): EUtilsResponse {
   return { status, contentType, text: body };
 }

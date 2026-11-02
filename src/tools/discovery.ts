@@ -7,7 +7,6 @@ import { validateDatabase } from '../services/validate.js';
 import { asArray, parseXml, textOf } from '../services/xml.js';
 import { parseEGQuery, parseESpell, requireSection, type EGQueryEntry } from './parse.js';
 import { READ_ONLY_ANNOTATIONS, ResponseFormatSchema, requireTerm } from './common.js';
-
 const EInfoInput = z.object({
   db: z
     .string()
@@ -21,24 +20,15 @@ const EInfoInput = z.object({
     ),
   response_format: ResponseFormatSchema,
 });
-
 const EGQueryInput = z.object({
   term: z.string().min(1).describe('Entrez text query to run against every database at once.'),
   response_format: ResponseFormatSchema,
 });
-
 const ESpellInput = z.object({
   db: z.string().min(1).describe('Entrez database to check the spelling against, for example "pubmed".'),
   term: z.string().min(1).describe('Query whose spelling should be checked, for example "breast cancr".'),
   response_format: ResponseFormatSchema,
 });
-
-/**
- * Output contracts.
- *
- * Loose objects: they name the fields a caller can rely on and permit the
- * rest. A strict schema would break clients whenever NCBI adds a field.
- */
 const EInfoOutput = z.looseObject({
   count: z.number().optional().describe('Number of Entrez databases, when no db was given.'),
   databases: z.array(z.string()).optional().describe('Database names, when no db was given.'),
@@ -58,7 +48,6 @@ const EInfoOutput = z.looseObject({
   link_count: z.number().optional(),
   links: z.array(z.looseObject({ name: z.string(), dbto: z.string() })).optional(),
 });
-
 const EGQueryOutput = z.looseObject({
   term: z.string(),
   databases_searched: z.number(),
@@ -72,14 +61,12 @@ const EGQueryOutput = z.looseObject({
   degraded: z.boolean().optional().describe('True when the fallback produced this result.'),
   degraded_reason: z.string().optional(),
 });
-
 const ESpellOutput = z.looseObject({
   database: z.string(),
   query: z.string(),
   corrected_query: z.string(),
   changed: z.boolean(),
 });
-
 interface DbField {
   name: string;
   fullname: string;
@@ -88,25 +75,21 @@ interface DbField {
   is_truncatable?: boolean;
   is_rangeable?: boolean;
 }
-
 interface DbLink {
   name: string;
   dbto: string;
   menu: string;
 }
-
 function readFieldFlag(value: unknown): boolean | undefined {
   const text = textOf(value).trim();
   if (text === 'Y') return true;
   if (text === 'N') return false;
   return undefined;
 }
-
 function readFields(dbinfo: Record<string, unknown>): DbField[] {
   return (asArray(dbinfo['fieldlist']) as Record<string, unknown>[]).map((field) => {
     const isTruncatable = readFieldFlag(field['istruncatable']);
     const isRangeable = readFieldFlag(field['israngable']);
-
     return {
       name: textOf(field['name']),
       fullname: textOf(field['fullname']),
@@ -117,7 +100,6 @@ function readFields(dbinfo: Record<string, unknown>): DbField[] {
     };
   });
 }
-
 function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
   return (asArray(dbinfo['linklist']) as Record<string, unknown>[]).map((link) => ({
     name: textOf(link['name']),
@@ -125,7 +107,6 @@ function readLinks(dbinfo: Record<string, unknown>): DbLink[] {
     menu: textOf(link['menu']),
   }));
 }
-
 async function runEInfo(
   client: EUtilsClient,
   input: z.infer<typeof EInfoInput>,
@@ -134,15 +115,12 @@ async function runEInfo(
   const params: QueryParams = { retmode: 'json' };
   if (input.db) params['db'] = validateDatabase(input.db);
   if (input.version !== undefined) params['version'] = input.version;
-
   const res = await client.request({ endpoint: 'einfo.fcgi', params, signal });
   const root = requireSection<Record<string, unknown>>(res.json, 'einforesult', 'EInfo');
-
   if (!input.db) {
     const dblist = asArray(root['dblist'])
       .map((entry) => textOf(entry))
       .filter((name) => name.length > 0);
-
     const markdown = [
       `# Entrez databases (${dblist.length})`,
       '',
@@ -150,19 +128,16 @@ async function runEInfo(
       '',
       dblist.map((name) => `- ${name}`).join('\n'),
     ].join('\n');
-
     return respond({
       structured: { count: dblist.length, databases: dblist },
       markdown,
       format: input.response_format,
     });
   }
-
   const dbinfo = (asArray(root['dbinfo'])[0] ?? {}) as Record<string, unknown>;
   const dbname = textOf(dbinfo['dbname']) || input.db;
   const fields = readFields(dbinfo);
   const links = readLinks(dbinfo);
-
   const structured = {
     database: dbname,
     menu_name: textOf(dbinfo['menuname']),
@@ -175,7 +150,6 @@ async function runEInfo(
     link_count: links.length,
     links,
   };
-
   const markdown = [
     `# ${structured.menu_name || dbname} (\`${dbname}\`)`,
     '',
@@ -199,29 +173,24 @@ async function runEInfo(
     '',
     links.map((l) => `- \`${l.name}\` → **${l.dbto}**${l.menu ? ` (${l.menu})` : ''}`).join('\n'),
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
 async function runEGQuery(
   client: EUtilsClient,
   input: z.infer<typeof EGQueryInput>,
   signal?: AbortSignal,
 ): Promise<ToolTextResult> {
   const term = requireTerm(input.term);
-
   let entries: EGQueryEntry[] = [];
-  let failures: { db: string; error: string }[] = [];
+  let failures: {
+    db: string;
+    error: string;
+  }[] = [];
   let degradedReason: string | undefined;
   let degradedHint: string | undefined;
-
   try {
     entries = await queryEGQuery(client, term, signal);
   } catch (error) {
-    // EGQuery answers unauthenticated requests with a 301 to an NCBI-internal
-    // service-mesh host that is not published in public DNS. Timeouts and empty
-    // bodies are equally unusable, so they degrade too. Validation and rate
-    // limit errors propagate: retrying 12 databases would not help.
     const degradable =
       error instanceof EUtilsError &&
       (error.kind === 'network' ||
@@ -245,10 +214,8 @@ async function runEGQuery(
       );
     }
   }
-
   const hits = entries.filter((e) => e.count > 0).sort((a, b) => b.count - a.count);
   const empty = entries.filter((e) => e.count === 0);
-
   const structured = {
     term,
     databases_searched: entries.length,
@@ -266,7 +233,6 @@ async function runEGQuery(
         }
       : {}),
   };
-
   const markdown = [
     `# Global Entrez query: \`${term}\``,
     '',
@@ -295,18 +261,14 @@ async function runEGQuery(
       ? `Next: run \`eutils_esearch\` with db="${hits[0]!.db}" to retrieve UIDs.`
       : 'Next: check the spelling with `eutils_espell`, or broaden the query.',
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
-/** Ask EGQuery directly. Returns one entry per Entrez database. */
 async function queryEGQuery(
   client: EUtilsClient,
   term: string,
   signal?: AbortSignal,
 ): Promise<EGQueryEntry[]> {
   const res = await client.request({ endpoint: 'egquery.fcgi', params: { term }, signal });
-
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
     throw new EUtilsError(
@@ -315,7 +277,6 @@ async function queryEGQuery(
       'Retry. If it persists, the endpoint may be under maintenance.',
     );
   }
-
   const entries = parseEGQuery(parsed);
   if (entries.length === 0) {
     throw new EUtilsError(
@@ -326,13 +287,6 @@ async function queryEGQuery(
   }
   return entries;
 }
-
-/**
- * Databases used when EGQuery itself is unavailable.
- *
- * Chosen to cover the questions EGQuery is normally asked. Individual
- * failures are tolerated so one bad database cannot fail the whole call.
- */
 const EGQUERY_FALLBACK_DATABASES = [
   'pubmed',
   'pmc',
@@ -347,21 +301,20 @@ const EGQUERY_FALLBACK_DATABASES = [
   'mesh',
   'gds',
 ] as const;
-
 export interface EGQueryFailure {
   db: string;
   error: string;
 }
-
-/** Count matches per database with ESearch, as a stand-in for EGQuery. */
 async function egqueryFallback(
   client: EUtilsClient,
   term: string,
   signal?: AbortSignal,
-): Promise<{ entries: EGQueryEntry[]; failures: EGQueryFailure[] }> {
+): Promise<{
+  entries: EGQueryEntry[];
+  failures: EGQueryFailure[];
+}> {
   const entries: EGQueryEntry[] = [];
   const failures: EGQueryFailure[] = [];
-
   for (const db of EGQUERY_FALLBACK_DATABASES) {
     if (signal?.aborted) {
       throw new EUtilsError('cancelled', 'The EGQuery fallback was cancelled.', 'No action is needed.');
@@ -371,7 +324,7 @@ async function egqueryFallback(
         endpoint: 'esearch.fcgi',
         params: { db, term, retmax: 0, retmode: 'json' },
         signal,
-        timeoutMs: 5_000,
+        timeoutMs: 5000,
         maxRetries: 0,
       });
       const root = requireSection<Record<string, unknown>>(res.json, 'esearchresult', 'ESearch');
@@ -380,10 +333,8 @@ async function egqueryFallback(
       failures.push({ db, error: error instanceof Error ? error.message : String(error) });
     }
   }
-
   return { entries, failures };
 }
-
 async function runESpell(
   client: EUtilsClient,
   input: z.infer<typeof ESpellInput>,
@@ -391,9 +342,7 @@ async function runESpell(
 ): Promise<ToolTextResult> {
   const db = validateDatabase(input.db);
   const term = requireTerm(input.term);
-
   const res = await client.request({ endpoint: 'espell.fcgi', params: { db, term }, signal });
-
   const parsed = parseXml(res.text);
   if (parsed === undefined) {
     throw new EUtilsError(
@@ -402,16 +351,13 @@ async function runESpell(
       'Retry. If it persists, the endpoint may be under maintenance.',
     );
   }
-
   const { query, corrected, changed } = parseESpell(parsed, term);
-
   const structured = {
     database: db,
     query,
     corrected_query: corrected,
     changed,
   };
-
   const markdown = [
     `# Spelling check in \`${db}\``,
     '',
@@ -421,11 +367,8 @@ async function runESpell(
       ? `Suggested correction: **${corrected}**\n\nNext: run \`eutils_esearch\` with term="${corrected}".`
       : 'No correction suggested. The query appears to be spelled correctly.',
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
-/** Register EInfo, EGQuery, and ESpell. */
 export function registerDiscoveryTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_einfo',
@@ -470,7 +413,6 @@ Error Handling:
       }
     },
   );
-
   server.registerTool(
     'eutils_egquery',
     {
@@ -512,7 +454,6 @@ Error Handling:
       }
     },
   );
-
   server.registerTool(
     'eutils_espell',
     {

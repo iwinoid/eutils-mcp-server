@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createHarness, json, text } from './toolHarness.js';
-
 describe('link_then_fetch', () => {
   it('prefers the canonical dbfrom_dbto link and reports bounded counts', async () => {
     const harness = createHarness((req) => {
@@ -27,7 +26,6 @@ describe('link_then_fetch', () => {
       if (req.endpoint === 'efetch.fcgi') return text('>NP_005537.3 example\nMAAA');
       return text('unexpected', 500);
     });
-
     const result = await harness.call('eutils_link_then_fetch', {
       dbfrom: 'gene',
       db: 'protein',
@@ -35,7 +33,6 @@ describe('link_then_fetch', () => {
       retmax: 20,
       response_format: 'json',
     });
-
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent.source_total).toBe(1);
     expect(result.structuredContent.requested).toBe(20);
@@ -48,7 +45,6 @@ describe('link_then_fetch', () => {
     expect(efetch!.params).toMatchObject({ rettype: 'fasta', retmode: 'text' });
   });
 });
-
 function searchJson(count: number): unknown {
   return {
     esearchresult: {
@@ -61,7 +57,6 @@ function searchJson(count: number): unknown {
     },
   };
 }
-
 function elinkJson(dbto: string): unknown {
   return {
     linksets: [
@@ -72,7 +67,6 @@ function elinkJson(dbto: string): unknown {
     ],
   };
 }
-
 describe('search_then_fetch format defaults', () => {
   it.each(['pmc', 'gene'])('sends no format parameters for %s and does not throw', async (db) => {
     const harness = createHarness((req) => {
@@ -80,13 +74,11 @@ describe('search_then_fetch format defaults', () => {
       if (req.endpoint === 'efetch.fcgi') return text('<records />');
       return text('unexpected', 500);
     });
-
     const result = await harness.call('eutils_search_then_fetch', {
       db,
       term: 'example',
       response_format: 'json',
     });
-
     expect(result.isError).toBeFalsy();
     const efetch = harness.calls.find((call) => call.endpoint === 'efetch.fcgi');
     expect(efetch!.params).not.toHaveProperty('rettype');
@@ -95,20 +87,17 @@ describe('search_then_fetch format defaults', () => {
     expect(result.structuredContent.retmode).toBe('default');
     expect(result.structuredContent.retrieved).toBe(3);
   });
-
   it('keeps the PubMed abstract default', async () => {
     const harness = createHarness((req) => {
       if (req.endpoint === 'esearch.fcgi') return json(searchJson(2));
       if (req.endpoint === 'efetch.fcgi') return text('Abstract text');
       return text('unexpected', 500);
     });
-
     const result = await harness.call('eutils_search_then_fetch', {
       db: 'pubmed',
       term: 'example',
       response_format: 'json',
     });
-
     expect(result.isError).toBeFalsy();
     const efetch = harness.calls.find((call) => call.endpoint === 'efetch.fcgi');
     expect(efetch!.params).toMatchObject({ rettype: 'abstract', retmode: 'text' });
@@ -116,7 +105,6 @@ describe('search_then_fetch format defaults', () => {
     expect(result.structuredContent.retmode).toBe('text');
   });
 });
-
 describe('link_then_fetch format defaults', () => {
   it('sends no format parameters for a PMC target and does not throw', async () => {
     const harness = createHarness((req) => {
@@ -127,14 +115,12 @@ describe('link_then_fetch format defaults', () => {
       if (req.endpoint === 'efetch.fcgi') return text('<pmc-articleset />');
       return text('unexpected', 500);
     });
-
     const result = await harness.call('eutils_link_then_fetch', {
       dbfrom: 'pubmed',
       db: 'pmc',
       uids: ['31452104'],
       response_format: 'json',
     });
-
     expect(result.isError).toBeFalsy();
     const efetch = harness.calls.find((call) => call.endpoint === 'efetch.fcgi');
     expect(efetch!.params).not.toHaveProperty('rettype');
@@ -142,7 +128,6 @@ describe('link_then_fetch format defaults', () => {
     expect(result.structuredContent.rettype).toBe('default');
     expect(result.structuredContent.retmode).toBe('default');
   });
-
   it('maps an explicit PMC text request to MEDLINE', async () => {
     const harness = createHarness((req) => {
       if (req.endpoint === 'epost.fcgi') {
@@ -152,7 +137,6 @@ describe('link_then_fetch format defaults', () => {
       if (req.endpoint === 'efetch.fcgi') return text('PMID- 1');
       return text('unexpected', 500);
     });
-
     const result = await harness.call('eutils_link_then_fetch', {
       dbfrom: 'pubmed',
       db: 'pmc',
@@ -160,7 +144,6 @@ describe('link_then_fetch format defaults', () => {
       retmode: 'text',
       response_format: 'json',
     });
-
     expect(result.isError).toBeFalsy();
     const efetch = harness.calls.find((call) => call.endpoint === 'efetch.fcgi');
     expect(efetch!.params).toMatchObject({ rettype: 'medline', retmode: 'text' });

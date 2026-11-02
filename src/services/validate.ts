@@ -1,24 +1,11 @@
 import { DB_NAME_PATTERN, ENTREZ_DATABASES, MAX_UIDS_PER_CALL, RETMAX_CAPS } from '../constants.js';
 import { EUtilsError } from '../types.js';
-
 const KNOWN_DATABASES = new Set<string>(ENTREZ_DATABASES);
-
-/** True when `value` is one of the 38 Entrez databases. */
 export function isKnownDatabase(value: string): boolean {
   return KNOWN_DATABASES.has(value);
 }
-
-/**
- * Validate a database name.
- *
- * Two gates, in order. The character-class guard blocks anything that could
- * splice a query parameter or escape the endpoint, and it stays correct if
- * NCBI adds a database. The allowlist then rejects plausible-but-unknown
- * names with a helpful message.
- */
 export function validateDatabase(value: string): string {
   const normalised = value.trim().toLowerCase();
-
   if (!DB_NAME_PATTERN.test(normalised)) {
     throw new EUtilsError(
       'validation',
@@ -26,7 +13,6 @@ export function validateDatabase(value: string): string {
       'Use lowercase letters, digits, and underscores only. Call eutils_einfo to list databases.',
     );
   }
-
   if (!KNOWN_DATABASES.has(normalised)) {
     const sample = ENTREZ_DATABASES.slice(0, 12).join(', ');
     throw new EUtilsError(
@@ -35,26 +21,11 @@ export function validateDatabase(value: string): string {
       `Known databases include: ${sample}. Call eutils_einfo for the full list.`,
     );
   }
-
   return normalised;
 }
-
-/**
- * Parse a UID list from either an array or a comma-separated string.
- *
- * UIDs are opaque to us, so they are only checked for shape: non-empty,
- * no whitespace, no URL metacharacters.
- *
- * Models and some hosts serialise an array into a string such as
- * `'["31452104", "31452105"]'` before it reaches us. When a string looks
- * like a JSON array it is parsed first; every element still passes through
- * the same character guard below, so the leniency admits no new input
- * shape beyond plain UIDs and accessions.
- */
 export function parseUids(input: string | string[]): string[] {
   const raw = Array.isArray(input) ? input : splitUidString(input);
   const uids: string[] = [];
-
   for (const item of raw) {
     const uid = String(item).trim();
     if (uid.length === 0) continue;
@@ -67,7 +38,6 @@ export function parseUids(input: string | string[]): string[] {
     }
     uids.push(uid);
   }
-
   if (uids.length === 0) {
     throw new EUtilsError(
       'validation',
@@ -82,11 +52,8 @@ export function parseUids(input: string | string[]): string[] {
       'Split the list into smaller calls, or use a History set built from a query.',
     );
   }
-
   return uids;
 }
-
-/** Split a UID string, accepting a stringified JSON array as one spelling. */
 function splitUidString(input: string): string[] {
   const trimmed = input.trim();
   if (trimmed.startsWith('[')) {
@@ -95,18 +62,13 @@ function splitUidString(input: string): string[] {
       if (Array.isArray(parsed)) {
         return parsed.map((item) => String(item));
       }
-    } catch {
-      // Fall through to comma splitting so the caller gets the usual error.
-    }
+    } catch {}
   }
   return input.split(',');
 }
-
-/** Enforce a per-endpoint retmax ceiling, refusing rather than clamping. */
 export function validateRetmax(value: number | undefined, endpoint: keyof typeof RETMAX_CAPS): number {
   const cap = RETMAX_CAPS[endpoint];
   const resolved = value ?? Math.min(20, cap);
-
   if (resolved < 0) {
     throw new EUtilsError(
       'validation',
@@ -123,8 +85,6 @@ export function validateRetmax(value: number | undefined, endpoint: keyof typeof
   }
   return resolved;
 }
-
-/** Split a list into fixed-size chunks, used for internal batching. */
 export function chunk<T>(items: readonly T[], size: number): T[][] {
   if (size <= 0) throw new Error('chunk size must be positive');
   const out: T[][] = [];
@@ -133,10 +93,8 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
   }
   return out;
 }
-
 export function validateWebEnv(value: string): string {
   const webEnv = value.trim();
-
   if (webEnv.length === 0 || /[\s&?]/.test(webEnv)) {
     throw new EUtilsError(
       'validation',
@@ -144,11 +102,8 @@ export function validateWebEnv(value: string): string {
       'Pass the history object returned by a previous eutils_esearch, eutils_epost, or eutils_elink call unchanged.',
     );
   }
-
   return webEnv;
 }
-
-/** Validate a History reference supplied by the caller. */
 export function validateHistory(history: { db: string; web_env: string; query_key: string }): {
   db: string;
   web_env: string;
@@ -157,7 +112,6 @@ export function validateHistory(history: { db: string; web_env: string; query_ke
   const db = validateDatabase(history.db);
   const webEnv = validateWebEnv(history.web_env);
   const queryKey = history.query_key.trim();
-
   if (!/^[0-9]{1,10}$/.test(queryKey)) {
     throw new EUtilsError(
       'validation',
@@ -165,6 +119,5 @@ export function validateHistory(history: { db: string; web_env: string; query_ke
       'query_key is a small integer. Pass the history object returned by a previous call unchanged.',
     );
   }
-
   return { db, web_env: webEnv, query_key: queryKey };
 }

@@ -3,10 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createHarness, json, text } from './toolHarness.js';
-
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const loadJson = (name: string): unknown => JSON.parse(readFileSync(join(fixtures, name), 'utf8'));
-
 describe('ELink defaults', () => {
   it('reports stored link groups separately from linked UID totals', async () => {
     const harness = createHarness(() =>
@@ -30,7 +28,6 @@ describe('ELink defaults', () => {
     expect(result.structuredContent.stored_groups).toBe(1);
     expect(result.structuredContent.histories).toHaveLength(1);
   });
-
   it('rejects a citation list over the per-call ceiling before any request', async () => {
     const harness = createHarness(() => json({}));
     const citations = Array.from({ length: 201 }, (_, index) => 'journal|2000|1|1|author|K' + index + '|');
@@ -38,7 +35,6 @@ describe('ELink defaults', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('sends db=dbfrom when db is omitted, so it checks the same database', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -52,7 +48,6 @@ describe('ELink defaults', () => {
     expect(harness.calls[0]!.params['dbfrom']).toBe('gene');
   });
 });
-
 describe('ELink command policy', () => {
   it('sends no db for acheck when db is omitted', async () => {
     const harness = createHarness(() => json(loadJson('elink-acheck.json')));
@@ -68,7 +63,6 @@ describe('ELink command policy', () => {
     expect(harness.calls[0]!.params['dbfrom']).toBe('protein');
     expect(harness.calls[0]!.params['cmd']).toBe('acheck');
   });
-
   it('sends db as the acheck target filter when it is given', async () => {
     const harness = createHarness(() => json(loadJson('elink-acheck.json')));
     await harness.call('eutils_elink', {
@@ -80,7 +74,6 @@ describe('ELink command policy', () => {
     });
     expect(harness.calls[0]!.params['db']).toBe('cdd');
   });
-
   it('sends no db for lcheck and parses the checks', async () => {
     const harness = createHarness(() => json(loadJson('elink-lcheck.json')));
     const result = await harness.call('eutils_elink', {
@@ -93,7 +86,6 @@ describe('ELink command policy', () => {
     expect(harness.calls[0]!.params).not.toHaveProperty('db');
     expect(result.structuredContent.link_checks).toHaveLength(2);
   });
-
   it('rejects db on lcheck before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -105,7 +97,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('accepts db=dbfrom on ncheck but does not send it', async () => {
     const harness = createHarness(() => json(loadJson('elink-ncheck.json')));
     const result = await harness.call('eutils_elink', {
@@ -120,7 +111,6 @@ describe('ELink command policy', () => {
     expect(result.structuredContent.link_checks).toHaveLength(2);
     expect(result.structuredContent.link_checks[0].has_neighbor).toBe(true);
   });
-
   it('rejects a different db on ncheck before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -132,7 +122,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('sends no db for llinks or prlinks and parses provider URLs', async () => {
     const llinks = createHarness(() => json(loadJson('elink-llinks.json')));
     const llinksResult = await llinks.call('eutils_elink', {
@@ -144,7 +133,6 @@ describe('ELink command policy', () => {
     expect(llinksResult.isError).toBeFalsy();
     expect(llinks.calls[0]!.params).not.toHaveProperty('db');
     expect(llinksResult.structuredContent.provider_links).toHaveLength(1);
-
     const prlinks = createHarness(() => json(loadJson('elink-prlinks.json')));
     const prlinksResult = await prlinks.call('eutils_elink', {
       dbfrom: 'pubmed',
@@ -156,7 +144,6 @@ describe('ELink command policy', () => {
     expect(prlinks.calls[0]!.params).not.toHaveProperty('db');
     expect(prlinksResult.structuredContent.provider_links[0].urls[0].provider_abbr).toBe('PMC');
   });
-
   it('rejects db on llinks and prlinks before any request', async () => {
     for (const cmd of ['llinks', 'prlinks']) {
       const harness = createHarness(() => json({ linksets: [] }));
@@ -170,7 +157,6 @@ describe('ELink command policy', () => {
       expect(harness.calls).toHaveLength(0);
     }
   });
-
   it('sends linkname with a neighbor command', async () => {
     const harness = createHarness(() => json(loadJson('elink-links.json')));
     const result = await harness.call('eutils_elink', {
@@ -182,7 +168,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBeFalsy();
     expect(harness.calls[0]!.params['linkname']).toBe('pubmed_pmc_refs');
   });
-
   it('rejects linkname for acheck before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -194,7 +179,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('rejects an invalid linkname before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -205,7 +189,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('sends term for a same-database neighbor_score', async () => {
     const harness = createHarness(() => json(loadJson('elink-neighbor-score.json')));
     const result = await harness.call('eutils_elink', {
@@ -219,7 +202,6 @@ describe('ELink command policy', () => {
     expect(harness.calls[0]!.params['term']).toBe('review[filter]');
     expect(harness.calls[0]!.params['db']).toBe('pubmed');
   });
-
   it('rejects term when the explicit db crosses databases', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -231,7 +213,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('rejects term for acheck before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -243,7 +224,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('sends holding only for llinks', async () => {
     const harness = createHarness(() => json(loadJson('elink-llinks.json')));
     const result = await harness.call('eutils_elink', {
@@ -256,7 +236,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBeFalsy();
     expect(harness.calls[0]!.params['holding']).toBe('CTgov');
   });
-
   it('rejects holding outside llinks before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -267,7 +246,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('sends idtype=acc and rejects other values before any request', async () => {
     const harness = createHarness(() => json(loadJson('elink-links.json')));
     const accepted = await harness.call('eutils_elink', {
@@ -278,7 +256,6 @@ describe('ELink command policy', () => {
     });
     expect(accepted.isError).toBeFalsy();
     expect(harness.calls[0]!.params['idtype']).toBe('acc');
-
     const rejectedHarness = createHarness(() => json({ linksets: [] }));
     const rejected = await rejectedHarness.call('eutils_elink', {
       dbfrom: 'protein',
@@ -288,7 +265,6 @@ describe('ELink command policy', () => {
     expect(rejected.isError).toBe(true);
     expect(rejectedHarness.calls).toHaveLength(0);
   });
-
   it('rejects neighbor_score with a different explicit db before any request', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -300,7 +276,6 @@ describe('ELink command policy', () => {
     expect(result.isError).toBe(true);
     expect(harness.calls).toHaveLength(0);
   });
-
   it('does not expose llinkslib or a retmode input', () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const schema = harness.configs.get('eutils_elink').inputSchema;
@@ -310,7 +285,6 @@ describe('ELink command policy', () => {
     expect(keys).not.toContain('rettype');
   });
 });
-
 describe('ELink output', () => {
   it('returns acheck available links in structured content', async () => {
     const harness = createHarness(() => json(loadJson('elink-acheck.json')));
@@ -324,7 +298,6 @@ describe('ELink output', () => {
     expect(result.structuredContent.groups).toEqual([]);
     expect(result.structuredContent.available_links[0].dbto).toBe('bioproject');
   });
-
   it('renders acheck markdown instead of the no-links message', async () => {
     const harness = createHarness(() => json(loadJson('elink-acheck.json')));
     const result = await harness.call('eutils_elink', {
@@ -338,7 +311,6 @@ describe('ELink output', () => {
     expect(markdown).toContain('bioproject');
     expect(markdown).not.toContain('No links found');
   });
-
   it('renders lcheck checks instead of the no-links message', async () => {
     const harness = createHarness(() => json(loadJson('elink-lcheck.json')));
     const result = await harness.call('eutils_elink', {
@@ -351,7 +323,6 @@ describe('ELink output', () => {
     expect(markdown).toContain('15718680');
     expect(markdown).not.toContain('No links found');
   });
-
   it('exposes neighbor_score scores aligned with ids', async () => {
     const harness = createHarness(() => json(loadJson('elink-neighbor-score.json')));
     const result = await harness.call('eutils_elink', {
@@ -364,7 +335,6 @@ describe('ELink output', () => {
     expect(result.structuredContent.groups[0].scores).toEqual([100, 50]);
     expect(result.structuredContent.total_linked).toBe(2);
   });
-
   it('says no links only when every result is empty', async () => {
     const harness = createHarness(() => json({ linksets: [] }));
     const result = await harness.call('eutils_elink', {
@@ -375,7 +345,6 @@ describe('ELink output', () => {
     expect(result.structuredContent.groups).toEqual([]);
   });
 });
-
 describe('ECitMatch request', () => {
   it('sends rettype=xml with retmode=xml and CR-joined bdata', async () => {
     const harness = createHarness(() => text('science|1987|235|182|palmenberg ac|Art2|3026048'));

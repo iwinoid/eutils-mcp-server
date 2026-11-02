@@ -1,35 +1,19 @@
 #!/usr/bin/env node
-/**
- * Verify that every answer in evals/eutils_evaluation.xml is still correct.
- *
- * Each question is solved against the live server by the same tool sequence a
- * model would use, and the produced answer is compared to the recorded one.
- * This is the evidence that the evaluation set is solvable and accurate.
- *
- * Usage: node scripts/verify-evals.mjs
- */
-
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = join(here, '..', 'dist', 'index.js');
 const evalPath = join(here, '..', 'evals', 'eutils_evaluation.xml');
-
-// ---------------------------------------------------------------- MCP client
-
 const child = spawn(process.execPath, [entry], {
   stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, NCBI_EMAIL: process.env.NCBI_EMAIL ?? 'eutils-mcp-server@example.com' },
 });
 child.stderr.resume();
-
 let buffer = '';
 const pending = new Map();
 let nextId = 1;
-
 child.stdout.on('data', (chunk) => {
   buffer += chunk.toString();
   let index;
@@ -49,22 +33,17 @@ child.stdout.on('data', (chunk) => {
     }
   }
 });
-
 function send(method, params) {
   const id = nextId++;
   child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
   return new Promise((resolve) => pending.set(id, resolve));
 }
-
 async function call(name, args) {
   const message = await send('tools/call', { name, arguments: args });
   const result = message.result ?? {};
   if (result.isError) throw new Error(`${name} failed: ${JSON.stringify(result.content)}`);
   return result.structuredContent;
 }
-
-// ------------------------------------------------------------ question solvers
-
 const solvers = [
   {
     id: 'PNAS 1991 journal abbreviation',
@@ -163,31 +142,23 @@ const solvers = [
     },
   },
 ];
-
-// ------------------------------------------------------------------ run them
-
 const xml = readFileSync(evalPath, 'utf8');
 const pairs = [...xml.matchAll(/<qa_pair>([\s\S]*?)<\/qa_pair>/g)].map((match) => ({
   question: match[1].match(/<question>([\s\S]*?)<\/question>/)[1].trim(),
   answer: match[1].match(/<answer>([\s\S]*?)<\/answer>/)[1].trim(),
 }));
-
 await send('initialize', {
   protocolVersion: '2026-07-28',
   capabilities: {},
   clientInfo: { name: 'verify-evals', version: '1.0.0' },
 });
 child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\n');
-
 console.log(`Verifying ${pairs.length} evaluation answers\n`);
-
 let failures = 0;
-
 if (solvers.length !== pairs.length) {
   console.error(`Solver count ${solvers.length} does not match question count ${pairs.length}`);
   process.exit(1);
 }
-
 for (const [index, pair] of pairs.entries()) {
   const solver = solvers[index];
   let actual;
@@ -198,7 +169,6 @@ for (const [index, pair] of pairs.entries()) {
     failures += 1;
     continue;
   }
-
   const ok = String(actual).trim() === pair.answer;
   console.log(
     `  ${ok ? 'PASS' : 'FAIL'}  Q${index + 1} ${solver.id}` +
@@ -206,7 +176,6 @@ for (const [index, pair] of pairs.entries()) {
   );
   if (!ok) failures += 1;
 }
-
 child.kill();
 console.log(
   `\n${failures === 0 ? `ALL ${pairs.length} EVALUATION ANSWERS VERIFIED` : `${failures} ANSWER(S) WRONG`}`,

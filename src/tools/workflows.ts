@@ -10,7 +10,6 @@ import { parseUids, validateDatabase, validateRetmax } from '../services/validat
 import { parseXml } from '../services/xml.js';
 import { parseELink, parseEPost, parseESearch } from './parse.js';
 import { ResponseFormatSchema, requireTerm, STATEFUL_ANNOTATIONS } from './common.js';
-
 const SearchThenFetchInput = z.object({
   db: z.string().min(1).describe('Entrez database to search, for example "pubmed".'),
   term: z.string().min(1).describe('Entrez query, for example "CRISPR AND 2024[pdat]".'),
@@ -33,7 +32,6 @@ const SearchThenFetchInput = z.object({
     .describe('Response encoding. Omit for the database default.'),
   response_format: ResponseFormatSchema,
 });
-
 const LinkThenFetchInput = z.object({
   dbfrom: z.string().min(1).describe('Source database, for example "gene".'),
   db: z.string().min(1).describe('Target database to download from, for example "protein".'),
@@ -60,13 +58,11 @@ const LinkThenFetchInput = z.object({
     .describe('Response encoding for the target database. Omit for the database default.'),
   response_format: ResponseFormatSchema,
 });
-
 const HistoryRefOutput = z.looseObject({
   db: z.string(),
   web_env: z.string(),
   query_key: z.string(),
 });
-
 const SearchThenFetchOutput = z.looseObject({
   database: z.string(),
   term: z.string(),
@@ -77,7 +73,6 @@ const SearchThenFetchOutput = z.looseObject({
   history: HistoryRefOutput,
   text: z.string(),
 });
-
 const LinkThenFetchOutput = z.looseObject({
   dbfrom: z.string(),
   dbto: z.string(),
@@ -94,22 +89,21 @@ const LinkThenFetchOutput = z.looseObject({
   history: HistoryRefOutput.optional(),
   text: z.string(),
 });
-
-/** ESearch for a query, storing the set on the History server. */
 async function searchToHistory(
   client: EUtilsClient,
   db: string,
   term: string,
   signal?: AbortSignal,
-): Promise<{ count: number; history: HistoryRef }> {
+): Promise<{
+  count: number;
+  history: HistoryRef;
+}> {
   const res = await client.request({
     endpoint: 'esearch.fcgi',
     params: { db, term, retmax: 0, usehistory: 'y', retmode: 'json' },
     signal,
   });
-
   const { total: count, history } = parseESearch(res.json, db, true);
-
   if (!history) {
     throw new EUtilsError(
       'upstream',
@@ -117,11 +111,8 @@ async function searchToHistory(
       'Retry. If it persists, run eutils_esearch on its own to inspect the response.',
     );
   }
-
   return { count, history };
 }
-
-/** Upload explicit UIDs to the History server. */
 async function postToHistory(
   client: EUtilsClient,
   db: string,
@@ -133,10 +124,8 @@ async function postToHistory(
     params: { db, id: uids.join(',') },
     signal,
   });
-
   const parsed = parseXml(res.text);
   const history = parsed === undefined ? undefined : parseEPost(parsed, db);
-
   if (!history) {
     throw new EUtilsError(
       'upstream',
@@ -144,11 +133,8 @@ async function postToHistory(
       'Verify the UIDs exist in the source database, then retry.',
     );
   }
-
   return history;
 }
-
-/** Download a page of records from a History set. */
 async function fetchFromHistory(
   client: EUtilsClient,
   db: string,
@@ -166,9 +152,7 @@ async function fetchFromHistory(
   };
   if (format.rettype !== undefined) params[EUTILS_PARAM.retType] = format.rettype;
   if (format.retmode !== undefined) params[EUTILS_PARAM.retMode] = format.retmode;
-
   const res = await client.request({ endpoint: 'efetch.fcgi', params, signal });
-
   const body = res.text.trim();
   if (/^error[:\s]/i.test(body)) {
     throw new EUtilsError(
@@ -177,10 +161,8 @@ async function fetchFromHistory(
       'Check that the UIDs exist in this database and that rettype is valid for it.',
     );
   }
-
   return body;
 }
-
 async function runSearchThenFetch(
   client: EUtilsClient,
   input: z.infer<typeof SearchThenFetchInput>,
@@ -190,9 +172,7 @@ async function runSearchThenFetch(
   const term = requireTerm(input.term);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
   const format = resolveFetchFormat(db, input.rettype, input.retmode);
-
   const { count, history } = await searchToHistory(client, db, term, signal);
-
   if (count === 0) {
     const structured = { database: db, term, total: 0, retrieved: 0, history, text: '' };
     const markdown = [
@@ -204,9 +184,7 @@ async function runSearchThenFetch(
     ].join('\n');
     return respond({ structured, markdown, format: input.response_format });
   }
-
   const body = await fetchFromHistory(client, db, history, format, retmax, signal);
-
   const structured = {
     database: db,
     term,
@@ -217,7 +195,6 @@ async function runSearchThenFetch(
     history,
     text: body,
   };
-
   const markdown = [
     `# Search and fetch: \`${term}\``,
     '',
@@ -235,15 +212,12 @@ async function runSearchThenFetch(
     JSON.stringify(history),
     '```',
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
 function countFastaRecords(body: string): number {
   if (body.length === 0) return 0;
   return body.split(/\r?\n(?=>)/).filter((part) => part.startsWith('>')).length;
 }
-
 async function runLinkThenFetch(
   client: EUtilsClient,
   input: z.infer<typeof LinkThenFetchInput>,
@@ -253,10 +227,8 @@ async function runLinkThenFetch(
   const dbto = validateDatabase(input.db);
   const retmax = validateRetmax(input.retmax ?? DEFAULT_RETMAX, 'efetch');
   const format = resolveFetchFormat(dbto, input.rettype, input.retmode);
-
   const hasTerm = input.term !== undefined && input.term.trim().length > 0;
   const hasUids = input.uids !== undefined && String(input.uids).trim().length > 0;
-
   if (hasTerm === hasUids) {
     throw new EUtilsError(
       'validation',
@@ -264,12 +236,10 @@ async function runLinkThenFetch(
       'Pass exactly one: term to search the source database, or uids to select source records directly.',
     );
   }
-
   const sourceUids = hasUids ? parseUids(input.uids!) : undefined;
   const source = hasTerm
     ? await searchToHistory(client, dbfrom, requireTerm(input.term), signal)
     : { count: sourceUids!.length, history: await postToHistory(client, dbfrom, sourceUids!, signal) };
-
   const linkParams: QueryParams = {
     dbfrom,
     db: dbto,
@@ -279,10 +249,8 @@ async function runLinkThenFetch(
     retmode: 'json',
   };
   if (input.linkname) linkParams['linkname'] = input.linkname;
-
   const linkRes = await client.request({ endpoint: 'elink.fcgi', params: linkParams, signal });
   const { groups, webEnv, histories } = parseELink(linkRes.json);
-
   const candidates = groups.filter((group) => group.dbto === dbto && group.query_key !== undefined);
   const preferred = input.linkname
     ? candidates.find((group) => group.linkname === input.linkname)
@@ -291,7 +259,6 @@ async function runLinkThenFetch(
     preferred?.query_key !== undefined && webEnv !== undefined
       ? { db: dbto, web_env: webEnv, query_key: preferred.query_key }
       : (histories.find((candidate) => candidate.db === dbto) ?? histories[0]);
-
   if (target === undefined) {
     const structured = {
       dbfrom,
@@ -310,11 +277,9 @@ async function runLinkThenFetch(
     ].join('\n');
     return respond({ structured, markdown, format: input.response_format });
   }
-
   const targetHistory: HistoryRef = target;
   const body = await fetchFromHistory(client, dbto, targetHistory, format, retmax, signal);
   const retrieved = format.rettype === 'fasta' ? countFastaRecords(body) : undefined;
-
   const structured = {
     dbfrom,
     dbto,
@@ -328,7 +293,6 @@ async function runLinkThenFetch(
     history: targetHistory,
     text: body,
   };
-
   const markdown = [
     `# Link and fetch: \`${dbfrom}\` → \`${dbto}\``,
     '',
@@ -352,11 +316,8 @@ async function runLinkThenFetch(
     '',
     `Next: page the target set with \`eutils_efetch\` and retstart, or follow a further link with \`eutils_elink\`.`,
   ].join('\n');
-
   return respond({ structured, markdown, format: input.response_format });
 }
-
-/** Register the two convenience pipelines. */
 export function registerWorkflowTools(server: McpServer, client: EUtilsClient): void {
   server.registerTool(
     'eutils_search_then_fetch',
@@ -401,7 +362,6 @@ Error Handling:
       }
     },
   );
-
   server.registerTool(
     'eutils_link_then_fetch',
     {

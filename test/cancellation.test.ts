@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createHarness, text } from './toolHarness.js';
-
 describe('MCP cancellation wiring', () => {
   it('passes the request signal to the E-utilities client', async () => {
     const harness = createHarness(() => text('>NP_005537.3 example'));
